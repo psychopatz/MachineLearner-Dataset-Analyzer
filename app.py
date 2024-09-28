@@ -7,6 +7,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import google.generativeai as genai
 
+# Define the path to the images
+image_folder = os.path.join(os.path.dirname(__file__), "img")
+
+# Load images
+st.image(os.path.join(image_folder, "tutorial1.png"), caption="Tutorial1")
+st.image(os.path.join(image_folder, "tutorial2.png"), caption="Tutorial2")
+st.image(os.path.join(image_folder, "chatbot.png"), caption="chatbot")
+st.image(os.path.join(image_folder, "user.png"), caption="user")
+
+
 # Set page configuration
 st.set_page_config(
     page_title="MachineLearner's Dataset Analyzer",  # Custom app title
@@ -196,9 +206,9 @@ def load_dataset():
             
             # Set Kaggle credentials (you should securely handle this in a real application)
             kaggle_json_content = '''{
-                "username": "your_username",
-                "key": "your_key"
-            }'''
+                    "username": "patz123456",
+                    "key": "dfbe240463c495fd73afbd59042f34d9"
+                }'''
             kaggle_data.set_kaggle_credentials(kaggle_json_content)
             
             # Download dataset
