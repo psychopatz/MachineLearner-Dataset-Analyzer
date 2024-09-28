@@ -424,11 +424,11 @@ def chatbot():
             with col1:
                 st.text_area("You:", value=message, height=100, max_chars=None, key=None, disabled=True)
             with col2:
-                st.image(os.path.join(image_folder, "user.png"), width=25)
+                st.image(os.path.join(image_folder, "user.png"), width=30)
         else:
             col1, col2 = st.columns([1, 6])
             with col1:
-                st.image(os.path.join(image_folder, "chatbot.png"), width=25)
+                st.image(os.path.join(image_folder, "chatbot.png"), width=30)
             with col2:
                 st.markdown(f" {message}")
     
@@ -449,12 +449,12 @@ def chatbot():
                 with col1:
                     st.text_area("You:", value=user_input, height=100, max_chars=None, key=None, disabled=True)
                 with col2:
-                    st.image(os.path.join(image_folder, "user.png"), width=25)
+                    st.image(os.path.join(image_folder, "user.png"), width=30)
                 
                 # Display assistant response
                 col1, col2 = st.columns([1, 6])
                 with col1:
-                    st.image(os.path.join(image_folder, "chatbot.png"), width=25)
+                    st.image(os.path.join(image_folder, "chatbot.png"), width=30)
                 with col2:
                     st.markdown(f"{response}")
             
