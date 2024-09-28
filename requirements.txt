@@ -1,0 +1,7 @@
+tabulate
+seaborn
+pandas
+matplotlib
+google-generativeai
+kaggle
+streamlit
