@@ -7,14 +7,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import google.generativeai as genai
 
-# Define the path to the images
-image_folder = os.path.join(os.path.dirname(__file__), "img")
-
-# Load images
-st.image(os.path.join(image_folder, "Tutorial1.png"), caption="Tutorial1")
-st.image(os.path.join(image_folder, "Tutorial2.png"), caption="Tutorial2")
-st.image(os.path.join(image_folder, "chatbot.png"), caption="chatbot")
-st.image(os.path.join(image_folder, "user.png"), caption="user")
 
 
 # Set page configuration
@@ -24,6 +16,15 @@ st.set_page_config(
     layout="centered",                 # Can be "centered" or "wide"
     initial_sidebar_state="expanded"   # Can be "expanded", "collapsed", or "auto"
 )
+
+# Define the path to the images
+image_folder = os.path.join(os.path.dirname(__file__), "img")
+
+# Load images
+st.image(os.path.join(image_folder, "Tutorial1.png"), caption="Tutorial1")
+st.image(os.path.join(image_folder, "Tutorial2.png"), caption="Tutorial2")
+st.image(os.path.join(image_folder, "chatbot.png"), caption="chatbot")
+st.image(os.path.join(image_folder, "user.png"), caption="user")
 
 
 class KaggleDataUploader:
