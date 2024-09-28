@@ -177,8 +177,8 @@ class Chatbot:
 def load_dataset():
     global comprehensive_analysis
     st.title("Import your Kaggle Dataset")
-    st.image("tutorial1.png", caption="Tutorial1")
-    st.image("tutorial2.png", caption="Tutorial2")
+    st.image("img/tutorial1.png", caption="Tutorial1")
+    st.image("img/tutorial2.png", caption="Tutorial2")
     kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
     
     if st.button("Load Dataset"):
@@ -285,8 +285,8 @@ class Chatbot:
 
 def load_dataset():
     st.title("Import your Kaggle Dataset ")
-    st.image("tutorial1.png", caption="Tutorial1")
-    st.image("tutorial2.png", caption="Tutorial2")
+    st.image("img/tutorial1.png", caption="Tutorial1")
+    st.image("img/tutorial2.png", caption="Tutorial2")
     kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
     
     load_button = st.button("Load Dataset", disabled=st.session_state.get('is_loading', False))
@@ -413,11 +413,11 @@ def chatbot():
             with col1:
                 st.text_area("You:", value=message, height=100, max_chars=None, key=None, disabled=True)
             with col2:
-                st.image("user.png", width=30)
+                st.image("img/user.png", width=30)
         else:
             col1, col2 = st.columns([1, 6])
             with col1:
-                st.image("chatbot.png", width=30)
+                st.image("img/chatbot.png", width=30)
             with col2:
                 st.markdown(f" {message}")
     
@@ -438,12 +438,12 @@ def chatbot():
                 with col1:
                     st.text_area("You:", value=user_input, height=100, max_chars=None, key=None, disabled=True)
                 with col2:
-                    st.image("user.png", width=50)
+                    st.image("img/user.png", width=50)
                 
                 # Display assistant response
                 col1, col2 = st.columns([1, 6])
                 with col1:
-                    st.image("chatbot.png", width=50)
+                    st.image("img/chatbot.png", width=50)
                 with col2:
                     st.markdown(f"{response}")
             
