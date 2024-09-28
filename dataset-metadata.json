@@ -1,0 +1,43 @@
+{
+  "id": "hanaksoy/customer-purchasing-behaviors",
+  "id_no": 5628931,
+  "datasetSlugNullable": "customer-purchasing-behaviors",
+  "ownerUserNullable": "hanaksoy",
+  "usabilityRatingNullable": 1.0,
+  "titleNullable": "Customer Purchasing Behaviors",
+  "subtitleNullable": "analyzes customers' behavior",
+  "descriptionNullable": "customer_id: Unique ID of the customer.\nage: The age of the customer.\nannual_income: The customer's annual income (in USD).\npurchase_amount: The total amount of purchases made by the customer (in USD).\npurchase_frequency: Frequency of customer purchases (number of times per year).\nregion: The region where the customer lives (North, South, East, West).\nloyalty_score: Customer's loyalty score (a value between 0-100).\n\nThis dataset includes information on customer profiles and their purchasing behaviors. The data features columns for user ID, age, annual income, purchase amount, loyalty score (categorized into classes), region, and purchase frequency. It is intended for analyzing customer segmentation and loyalty trends, and can be used for various machine learning and data analysis tasks related to customer behavior and market research.\n\nExplanation: These data are imaginary data. It was created entirely for the purpose of improving users, it has nothing to do with reality.",
+  "datasetId": 5628931,
+  "datasetSlug": "customer-purchasing-behaviors",
+  "hasDatasetSlug": true,
+  "ownerUser": "hanaksoy",
+  "hasOwnerUser": true,
+  "usabilityRating": 1.0,
+  "hasUsabilityRating": true,
+  "totalViews": 24316,
+  "totalVotes": 80,
+  "totalDownloads": 6643,
+  "title": "Customer Purchasing Behaviors",
+  "hasTitle": true,
+  "subtitle": "analyzes customers' behavior",
+  "hasSubtitle": true,
+  "description": "customer_id: Unique ID of the customer.\nage: The age of the customer.\nannual_income: The customer's annual income (in USD).\npurchase_amount: The total amount of purchases made by the customer (in USD).\npurchase_frequency: Frequency of customer purchases (number of times per year).\nregion: The region where the customer lives (North, South, East, West).\nloyalty_score: Customer's loyalty score (a value between 0-100).\n\nThis dataset includes information on customer profiles and their purchasing behaviors. The data features columns for user ID, age, annual income, purchase amount, loyalty score (categorized into classes), region, and purchase frequency. It is intended for analyzing customer segmentation and loyalty trends, and can be used for various machine learning and data analysis tasks related to customer behavior and market research.\n\nExplanation: These data are imaginary data. It was created entirely for the purpose of improving users, it has nothing to do with reality.",
+  "hasDescription": true,
+  "isPrivate": false,
+  "keywords": [
+    "intermediate",
+    "data visualization",
+    "data analytics",
+    "linear regression",
+    "ml ethics"
+  ],
+  "licenses": [
+    {
+      "nameNullable": "CC0-1.0",
+      "name": "CC0-1.0",
+      "hasName": true
+    }
+  ],
+  "collaborators": [],
+  "data": []
+}
