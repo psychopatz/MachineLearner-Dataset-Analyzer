@@ -11,8 +11,8 @@ import google.generativeai as genai
 image_folder = os.path.join(os.path.dirname(__file__), "img")
 
 # Load images
-st.image(os.path.join(image_folder, "tutorial1.png"), caption="Tutorial1")
-st.image(os.path.join(image_folder, "tutorial2.png"), caption="Tutorial2")
+st.image(os.path.join(image_folder, "Tutorial1.png"), caption="Tutorial1")
+st.image(os.path.join(image_folder, "Tutorial2.png"), caption="Tutorial2")
 st.image(os.path.join(image_folder, "chatbot.png"), caption="chatbot")
 st.image(os.path.join(image_folder, "user.png"), caption="user")
 
