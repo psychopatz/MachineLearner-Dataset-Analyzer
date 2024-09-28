@@ -1,4 +1,4 @@
-# Machine Learner Dataset Analyzer
+# [Machine Learner Dataset Analyzer](https://ml-dataset-analyzer.streamlit.app/)
 
 A **Streamlit** app for analyzing Kaggle datasets. This application allows users to download datasets from Kaggle, perform data exploration, compute statistics, and visualize the results through intuitive charts and graphs.
 
@@ -49,15 +49,8 @@ A **Streamlit** app for analyzing Kaggle datasets. This application allows users
    - `kaggle`
    - `streamlit`
 
-5. **Set up Kaggle API credentials**:
-   - Download your `kaggle.json` API key from your Kaggle account.
-   - Place the `kaggle.json` file in the appropriate directory:
-     ```bash
-     ~/.kaggle/kaggle.json     # For Linux/Mac
-     C:\Users\<Username>\.kaggle\kaggle.json  # For Windows
-     ```
 
-6. **Run the Streamlit app**:
+5. **Run the Streamlit app**:
    ```bash
    streamlit run app.py
    ```
@@ -71,10 +64,10 @@ A **Streamlit** app for analyzing Kaggle datasets. This application allows users
    - Example: `kaggle datasets download -d hanaksoy/customer-purchasing-behaviors`.
 
 2. **Dataset Overview**: 
-   - Explore basic information about the dataset, including column details and summary statistics.
+   - View descriptive statistics, histograms, box plots, and a correlation matrix for numerical columns.
 
 3. **Comprehensive Analysis**: 
-   - View descriptive statistics, histograms, box plots, and a correlation matrix for numerical columns.
+   - Explore the comprehensive information about the dataset, including column details, insights, and summary statistics.
 
 4. **Chatbot Assistant**: 
    - Interact with an AI-powered assistant for enhanced data insights.
@@ -93,11 +86,11 @@ Ensure the following Python packages are installed (included in `requirements.tx
 ## Project Structure
 
 ```
-├── app.py                  # Main Streamlit application script
-├── KaggleDataUploader.py    # Kaggle API interaction and dataset handling
-├── DataAnalyzer.py          # Data analysis and visualization logic
-├── requirements.txt         # Python dependencies
-└── README.md                # Project documentation
+├── app.py                             # Main Streamlit application script
+├── img/                               # Contains the images that are used in the project
+├── Machine_Learners_Cheat_Sheet.ipynb # Jupyter version of the function
+├── requirements.txt                   # Python dependencies
+└── README.md                          # Project documentation
 ```
 
 ## Contributions
