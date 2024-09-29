@@ -7,23 +7,16 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import google.generativeai as genai
 
-
-
 # Set page configuration
 st.set_page_config(
-    page_title="MachineLearner's Dataset Analyzer",  # Custom app title
-    page_icon="⚡",                   # You can use emojis or an image file as a favicon
-    layout="centered",                 # Can be "centered" or "wide"
-    initial_sidebar_state="expanded"   # Can be "expanded", "collapsed", or "auto"
+    page_title="MachineLearner's Dataset Analyzer",
+    page_icon="⚡",
+    layout="centered",
+    initial_sidebar_state="expanded"
 )
 
 # Define the path to the images
 image_folder = os.path.join(os.path.dirname(__file__), "img")
-
-
-
-
-
 
 class KaggleDataUploader:
     def __init__(self, dataset_name):
@@ -38,26 +31,16 @@ class KaggleDataUploader:
         st.success("Kaggle API credentials authorized successfully.")
 
     def download_dataset(self):
-        dataset_path = '.'
         os.system(f"kaggle datasets download -d {self.dataset_name} -p ./ --unzip")
         st.success(f"Dataset {self.dataset_name} downloaded successfully.")
         
-        csv_filename = self._find_csv_file(dataset_path)
+        csv_filename = self._find_csv_file('.')
         if csv_filename:
             st.info(f"CSV file found: {csv_filename}")
             self.df = pd.read_csv(csv_filename)
             return self.df
         else:
             st.error("No CSV file found in the dataset.")
-
-    def download_metadata(self):
-        metadata_path = 'dataset-metadata.json'
-        os.system(f"kaggle datasets metadata {self.dataset_name} -p ./")
-        st.success(f"Metadata for {self.dataset_name} downloaded successfully.")
-        
-        with open(f'./{metadata_path}', 'r') as f:
-            metadata = json.load(f)
-            st.json(metadata)
 
     def _find_csv_file(self, path):
         for root, dirs, files in os.walk(path):
@@ -67,15 +50,9 @@ class KaggleDataUploader:
         return None
 
 class DataAnalyzer:
-    def __init__(self):
-        self.df = None
-        self.df_cleaned = None
-        self.numerical_df = None
-
-    def set_data(self, df):
+    def __init__(self, df):
         self.df = df
-        self.df_cleaned = self.df.copy()
-        self.df_cleaned = self.df_cleaned.fillna(self.df_cleaned.mean(numeric_only=True))
+        self.df_cleaned = df.fillna(df.mean(numeric_only=True))
         self.numerical_df = self.df_cleaned.select_dtypes(include=[np.number])
 
     def explore_data(self):
@@ -141,125 +118,11 @@ class DataAnalyzer:
         plt.tight_layout()
         st.pyplot(fig)
 
-comprehensive_analysis = ""
-class Chatbot:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.model = None
-        self.chat_session = None
-        self.set_api_key()
-
-    def set_api_key(self):
-        if not self.api_key:
-            raise ValueError("API key not found. Please set the GOOGLE_API_KEY.")
-        genai.configure(api_key=self.api_key)
-
-    def create_model(self, knowledge):
-        knowledge_input = "\n".join(knowledge)
-        generation_config = {
-            "temperature": 1,
-            "top_p": 0.95,
-            "top_k": 64,
-            "max_output_tokens": 8192,
-            "response_mime_type": "text/plain",
-        }
-        self.model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            generation_config=generation_config,
-            system_instruction=(
-                "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
-                "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
-                "Make an Introduction, Key Statistics, Descriptive Statistics and insights "
-                "and give your output in a proper markdown language format.\n"
-                f"Here's the data given:\n{knowledge_input}"
-            ),
-        )
-
-    def start_chat(self):
-        self.chat_session = self.model.start_chat(history=[])
-
-    def get_response(self, user_input: str):
-        response = self.chat_session.send_message(user_input)
-        return response.text
-
-
-def load_dataset():
-    global comprehensive_analysis
-    st.title("Import your Kaggle Dataset") 
-    # Load images
-    st.image(os.path.join(image_folder, "tutorial1.png"), caption="Opening your Kaggle Dataset and press this button to open the menu")
-    st.image(os.path.join(image_folder, "tutorial2.png"), caption="Click Copy API Command")
-    kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
-    
-    if st.button("Load Dataset"):
-        if kaggle_command:
-            # Clear all session state variables
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            
-            comprehensive_analysis = ""
-            
-            # Extract dataset name from the command
-            dataset_name = kaggle_command.split()[-1]
-            
-            kaggle_data = KaggleDataUploader(dataset_name)
-            
-            # Set Kaggle credentials (you should securely handle this in a real application)
-            kaggle_json_content = '''{
-                    "username": "patz123456",
-                    "key": "dfbe240463c495fd73afbd59042f34d9"
-                }'''
-            kaggle_data.set_kaggle_credentials(kaggle_json_content)
-            
-            # Download dataset
-            df = kaggle_data.download_dataset()
-            
-            if df is not None:
-                st.session_state.df = df
-                st.session_state.dataset_loaded = True
-                st.success("Dataset loaded successfully!")
-            else:
-                st.error("Failed to load the dataset. Please check your Kaggle command and try again.")
-        else:
-            st.warning("Please enter a valid Kaggle API command.")
-
-def dashboard():
-    st.title("Dataset Dashboard")
-    
-    if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
-        st.warning("Please load a dataset first.")
-        return
-    
-    df = st.session_state.df
-    analyzer = DataAnalyzer()
-    analyzer.set_data(df)
-    
-    # Display results
-    analyzer.explore_data()
-    analyzer.compute_statistics()
-    analyzer.visualize_data()
-    
-    # Prepare knowledge for chatbot
-    st.session_state.knowledge = [
-        str(df.head()),
-        str(df.describe()),
-        str(df.info()),
-        str(analyzer.numerical_df.corr())
-    ]
-    
-    st.session_state.analysis_complete = True
-    st.success("Analysis complete!")
-
 class Chatbot:
     def __init__(self, api_key):
         self.api_key = api_key
         self.model = None
         self.chat_history = []
-        self.set_api_key()
-
-    def set_api_key(self):
-        if not self.api_key:
-            raise ValueError("API key not found. Please set the GOOGLE_API_KEY.")
         genai.configure(api_key=self.api_key)
 
     def create_model(self, knowledge):
@@ -283,54 +146,42 @@ class Chatbot:
             ),
         )
 
-    def get_response(self, user_input: str,isComprehensive = False):
-        if isComprehensive:
-            data = self.model.generate_content(user_input)
-            return data.text
-        
+    def get_response(self, user_input: str, is_comprehensive=False):
         response = self.model.generate_content(user_input)
-        self.chat_history.append(("User", user_input))
-        self.chat_history.append(("Assistant", response.text))
+        if not is_comprehensive:
+            self.chat_history.append(("User", user_input))
+            self.chat_history.append(("Assistant", response.text))
         return response.text
 
 def load_dataset():
-    st.title("Import your Kaggle Dataset ")
-    # Load images
+    st.title("Import your Kaggle Dataset")
     st.image(os.path.join(image_folder, "tutorial1.png"), caption="Opening your Kaggle Dataset and press this button to open the menu")
     st.image(os.path.join(image_folder, "tutorial2.png"), caption="Click Copy API Command")
     kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
     
-    load_button = st.button("Load Dataset", disabled=st.session_state.get('is_loading', False))
-    
-    if load_button:
+    if st.button("Load Dataset", disabled=st.session_state.get('is_loading', False)):
         if kaggle_command:
             st.session_state.is_loading = True
             
-            # Clear all session state variables
             for key in list(st.session_state.keys()):
                 if key != 'is_loading':
                     del st.session_state[key]
             
-            # Extract dataset name from the command
             dataset_name = kaggle_command.split()[-1]
             
             with st.spinner("Loading dataset..."):
                 kaggle_data = KaggleDataUploader(dataset_name)
-                
-                # Set Kaggle credentials (you should securely handle this in a real application)
                 kaggle_json_content = '''{
                     "username": "patz123456",
                     "key": "dfbe240463c495fd73afbd59042f34d9"
                 }'''
                 kaggle_data.set_kaggle_credentials(kaggle_json_content)
-                
-                # Download dataset
                 df = kaggle_data.download_dataset()
                 
                 if df is not None:
                     st.session_state.df = df
                     st.session_state.dataset_loaded = True
-                    st.session_state.analysis_complete = False  # Reset analysis state
+                    st.session_state.analysis_complete = False
                     st.success("Dataset loaded successfully!")
                 else:
                     st.error("Failed to load the dataset. Please check your Kaggle command and try again.")
@@ -338,7 +189,6 @@ def load_dataset():
             st.session_state.is_loading = False
         else:
             st.warning("Please enter a valid Kaggle API command.")
-        
 
 def dashboard():
     st.title("Dataset Dashboard")
@@ -352,20 +202,15 @@ def dashboard():
             st.session_state.is_analyzing = True
             
             with st.spinner("Analyzing data..."):
-                df = st.session_state.df
-                analyzer = DataAnalyzer()
-                analyzer.set_data(df)
-                
-                # Display results
+                analyzer = DataAnalyzer(st.session_state.df)
                 analyzer.explore_data()
                 analyzer.compute_statistics()
                 analyzer.visualize_data()
                 
-                # Prepare knowledge for chatbot
                 st.session_state.knowledge = [
-                    str(df.head()),
-                    str(df.describe()),
-                    str(df.info()),
+                    str(st.session_state.df.head()),
+                    str(st.session_state.df.describe()),
+                    str(st.session_state.df.info()),
                     str(analyzer.numerical_df.corr())
                 ]
                 
@@ -375,11 +220,7 @@ def dashboard():
             st.session_state.is_analyzing = False
     else:
         st.info("Analysis has already been completed. Load a new dataset to analyze again.")
-        
-        # Display the analysis results
-        df = st.session_state.df
-        analyzer = DataAnalyzer()
-        analyzer.set_data(df)
+        analyzer = DataAnalyzer(st.session_state.df)
         analyzer.explore_data()
         analyzer.compute_statistics()
         analyzer.visualize_data()
@@ -387,7 +228,6 @@ def dashboard():
 def chatbot():
     st.title("Dataset Chatbot")
     
-    # Add CSS to make the input box and button float at the bottom
     st.markdown("""
         <style>
         .fixed-bottom {
@@ -412,59 +252,50 @@ def chatbot():
     
     if 'chatbot' not in st.session_state:
         with st.spinner("Initializing chatbot..."):
-            # Initialize chatbot
-            google_api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"  # Replace with your actual Google API key
+            google_api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"
             st.session_state.chatbot = Chatbot(google_api_key)
             st.session_state.chatbot.create_model(st.session_state.knowledge)
     
-    # Display chat history
     for role, message in st.session_state.chatbot.chat_history:
-        if role == "User":
-            col1, col2 = st.columns([6, 1])
-            with col1:
+        col1, col2 = st.columns([6, 1]) if role == "User" else st.columns([1, 6])
+        with col1:
+            if role == "User":
                 st.text_area("You:", value=message, height=100, max_chars=None, key=None, disabled=True)
-            with col2:
-                st.image(os.path.join(image_folder, "user.png"), width=35)
-        else:
-            col1, col2 = st.columns([1, 6])
-            with col1:
+            else:
                 st.image(os.path.join(image_folder, "chatbot.png"), width=35)
-            with col2:
+        with col2:
+            if role == "User":
+                st.image(os.path.join(image_folder, "user.png"), width=35)
+            else:
                 st.markdown(f" {message}")
     
-    # Floating input box
     st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
     user_input = st.text_input("Your question:")
     ask_button = st.button("Ask", disabled=st.session_state.get('is_asking', False))
     st.markdown('</div>', unsafe_allow_html=True)
     
-    if ask_button:
-        if user_input:
-            st.session_state.is_asking = True
-            with st.spinner("Generating response..."):
-                response = st.session_state.chatbot.get_response(user_input)
-                
-                # Display user message
-                col1, col2 = st.columns([6, 1])
-                with col1:
-                    st.text_area("You:", value=user_input, height=100, max_chars=None, key=None, disabled=True)
-                with col2:
-                    st.image(os.path.join(image_folder, "user.png"), width=35)
-                
-                # Display assistant response
-                col1, col2 = st.columns([1, 6])
-                with col1:
-                    st.image(os.path.join(image_folder, "chatbot.png"), width=35)
-                with col2:
-                    st.markdown(f"{response}")
+    if ask_button and user_input:
+        st.session_state.is_asking = True
+        with st.spinner("Generating response..."):
+            response = st.session_state.chatbot.get_response(user_input)
             
-            st.session_state.is_asking = False
-        else:
-            st.warning("Please enter a question.")
+            col1, col2 = st.columns([6, 1])
+            with col1:
+                st.text_area("You:", value=user_input, height=100, max_chars=None, key=None, disabled=True)
+            with col2:
+                st.image(os.path.join(image_folder, "user.png"), width=35)
+            
+            col1, col2 = st.columns([1, 6])
+            with col1:
+                st.image(os.path.join(image_folder, "chatbot.png"), width=35)
+            with col2:
+                st.markdown(f"{response}")
+        
+        st.session_state.is_asking = False
+    elif ask_button:
+        st.warning("Please enter a question.")
 
-
-def getComprehensive_analysis():
-    global comprehensive_analysis
+def get_comprehensive_analysis():
     st.title("Comprehensive Analysis")
     if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
         st.warning("Please load a dataset first.")
@@ -476,43 +307,33 @@ def getComprehensive_analysis():
     
     if 'chatbot' not in st.session_state:
         with st.spinner("Initializing chatbot..."):
-            # Initialize chatbot
-            google_api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"  # Replace with your actual Google API key
+            google_api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"
             st.session_state.chatbot = Chatbot(google_api_key)
             st.session_state.chatbot.create_model(st.session_state.knowledge)
     
-    # Display comprehensive analysis
-    if comprehensive_analysis == "":
-        comprehensive_analysis = st.session_state.chatbot.get_response("Explain the datasets to me comprehensively", isComprehensive = True)
+    if 'comprehensive_analysis' not in st.session_state:
+        st.session_state.comprehensive_analysis = st.session_state.chatbot.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
     
-    st.markdown(comprehensive_analysis)
-    
+    st.markdown(st.session_state.comprehensive_analysis)
 
 def main():
     st.markdown("""
     <style>
-    /* Customize the radio button text */
     .css-1cpxqw2 {
-        font-size: 20px;            /* Font size */
-        font-weight: bold;          /* Bold text */
-        color: #ffffff;             /* White text for dark mode */
+        font-size: 20px;
+        font-weight: bold;
+        color: #ffffff;
     }
-
-    /* Customize the radio button container */
     .stRadio > div {
-        background-color: #333333;  /* Dark gray background for the radio button container */
+        background-color: #333333;
         padding: 10px;
         border-radius: 10px;
-        border: 1px solid #444444;  /* Subtle border to separate options */
+        border: 1px solid #444444;
     }
-
-    /* Customize the selected radio option */
     input[type="radio"]:checked + div {
-        background-color: #444444;  /* Darker gray for the selected option */
-        color: #00ccff;             /* Light blue text for selected option */
+        background-color: #444444;
+        color: #00ccff;
     }
-    
-    
     </style>
     """, unsafe_allow_html=True)
     
@@ -524,14 +345,14 @@ def main():
         st.session_state.is_asking = False
     
     st.sidebar.title("MachineLearner's Dataset Analyzer")
-    page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview","Comprehensive Analysis", "Chatbot Assistant"])
+    page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview", "Comprehensive Analysis", "Chatbot Assistant"])
     
     if page == "Load Dataset":
         load_dataset()
     elif page == "Dataset Overview":
         dashboard()
     elif page == "Comprehensive Analysis":
-        getComprehensive_analysis()
+        get_comprehensive_analysis()
     elif page == "Chatbot Assistant":
         chatbot()
 
