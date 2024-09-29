@@ -22,6 +22,9 @@ class KaggleDataUploader:
     def __init__(self, dataset_name):
         self.dataset_name = dataset_name
         self.df = None
+        self.datasets_dir = "datasets"
+        self.dataset_subdir = os.path.join(self.datasets_dir, self.dataset_name.replace('/', '_'))
+        os.makedirs(self.dataset_subdir, exist_ok=True)
 
     def set_kaggle_credentials(self, kaggle_json_content):
         os.makedirs(os.path.expanduser('~/.kaggle'), exist_ok=True)
@@ -31,10 +34,11 @@ class KaggleDataUploader:
         st.success("Kaggle API credentials authorized successfully.")
 
     def download_dataset(self):
-        os.system(f"kaggle datasets download -d {self.dataset_name} -p ./ --unzip")
+        download_command = f"kaggle datasets download -d {self.dataset_name} -p {self.dataset_subdir} --unzip"
+        os.system(download_command)
         st.success(f"Dataset {self.dataset_name} downloaded successfully.")
         
-        csv_filename = self._find_csv_file('.')
+        csv_filename = self._find_csv_file(self.dataset_subdir)
         if csv_filename:
             st.info(f"CSV file found: {csv_filename}")
             self.df = pd.read_csv(csv_filename)
@@ -49,6 +53,19 @@ class KaggleDataUploader:
                     return os.path.join(root, file)
         return None
 
+    def download_metadata(self):
+        metadata_path = os.path.join(self.dataset_subdir, f"dataset-metadata.json")
+        metadata_command = f"kaggle datasets metadata {self.dataset_name} -p {self.dataset_subdir}"
+        os.system(metadata_command)
+        st.success(f"Metadata for {self.dataset_name} downloaded successfully.")
+        
+        if os.path.exists(metadata_path):
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+                st.json(metadata)
+        else:
+            st.error("Metadata file not found.")
+            
 class DataAnalyzer:
     def __init__(self, df):
         self.df = df
@@ -182,13 +199,18 @@ def load_dataset():
                     st.session_state.df = df
                     st.session_state.dataset_loaded = True
                     st.session_state.analysis_complete = False
+                    st.session_state.new_dataset_loaded = True  # Set flag for new dataset
                     st.success("Dataset loaded successfully!")
+                    
+                    # Download and display metadata
+                    kaggle_data.download_metadata()
                 else:
                     st.error("Failed to load the dataset. Please check your Kaggle command and try again.")
             
             st.session_state.is_loading = False
         else:
             st.warning("Please enter a valid Kaggle API command.")
+            
 
 def dashboard():
     st.title("Dataset Dashboard")
@@ -297,6 +319,7 @@ def chatbot():
 
 def get_comprehensive_analysis():
     st.title("Comprehensive Analysis")
+    
     if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
         st.warning("Please load a dataset first.")
         return
@@ -311,10 +334,15 @@ def get_comprehensive_analysis():
             st.session_state.chatbot = Chatbot(google_api_key)
             st.session_state.chatbot.create_model(st.session_state.knowledge)
     
-    if 'comprehensive_analysis' not in st.session_state:
-        st.session_state.comprehensive_analysis = st.session_state.chatbot.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
+    # Check if we need to generate a new comprehensive analysis
+    if 'comprehensive_analysis' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
+        with st.spinner("Generating comprehensive analysis..."):
+            st.session_state.comprehensive_analysis = st.session_state.chatbot.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
+        st.session_state.new_dataset_loaded = False  # Reset the flag
     
     st.markdown(st.session_state.comprehensive_analysis)
+    
+
 
 def main():
     st.markdown("""
