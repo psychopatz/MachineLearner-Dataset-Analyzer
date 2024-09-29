@@ -38,20 +38,31 @@ class KaggleDataUploader:
         os.system(download_command)
         st.success(f"Dataset {self.dataset_name} downloaded successfully.")
         
-        csv_filename = self._find_csv_file(self.dataset_subdir)
-        if csv_filename:
-            st.info(f"CSV file found: {csv_filename}")
-            self.df = pd.read_csv(csv_filename)
-            return self.df
+        csv_files = self._find_csv_files(self.dataset_subdir)
+        if not csv_files:
+            st.error("No CSV files found in the dataset.")
+            return None
+        
+        st.session_state.csv_files = csv_files  # Store CSV files in session state
+        
+        if len(csv_files) == 1:
+            selected_file = csv_files[0]
         else:
-            st.error("No CSV file found in the dataset.")
+            if 'selected_csv' not in st.session_state:
+                st.session_state.selected_csv = csv_files[0]  # Default to first CSV
+            selected_file = st.session_state.selected_csv
+        
+        st.session_state.selected_csv = selected_file  # Store selected CSV in session state
+        self.df = pd.read_csv(selected_file)
+        return self.df
 
-    def _find_csv_file(self, path):
+    def _find_csv_files(self, path):
+        csv_files = []
         for root, dirs, files in os.walk(path):
             for file in files:
                 if file.endswith(".csv"):
-                    return os.path.join(root, file)
-        return None
+                    csv_files.append(os.path.join(root, file))
+        return csv_files
 
     def download_metadata(self):
         metadata_path = os.path.join(self.dataset_subdir, f"dataset-metadata.json")
@@ -62,9 +73,10 @@ class KaggleDataUploader:
         if os.path.exists(metadata_path):
             with open(metadata_path, 'r') as f:
                 metadata = json.load(f)
-                st.json(metadata)
+                st.session_state['knowledge'] = ["dataset metadata\n```json\n" + json.dumps(metadata, indent=2) + "\n```"]
         else:
             st.error("Metadata file not found.")
+            
             
 class DataAnalyzer:
     def __init__(self, df):
@@ -108,9 +120,26 @@ class DataAnalyzer:
         stats_df = pd.DataFrame(stats_dict).transpose()
         st.dataframe(stats_df.style.format("{:.2f}"))
 
-    def visualize_data(self):
-        st.subheader("Visual Representation of Descriptive Statistics")
+    def visualize_data(self, filterDisplay=[]):
+        # Define a mapping of visualizations to their identifiers
+        visualizations = {
+            "%HISTOGRAMS%": self.plot_histograms,
+            "%BOXPLOTS%": self.plot_boxplots,
+            "%CORRELATION MATRIX%": self.plot_correlation_matrix
+        }
 
+        # Check if filterDisplay has specific visualizations
+        if filterDisplay:
+            for key in filterDisplay:
+                if key in visualizations:
+                    visualizations[key]()  # Call the corresponding plot function
+        else:
+            # If filterDisplay is empty, display all visualizations
+            st.subheader("Visual Representation of Descriptive Statistics")
+            for key in visualizations:
+                visualizations[key]()
+
+    def plot_histograms(self):
         st.write("Histograms:")
         fig, axes = plt.subplots(figsize=(12, 8))
         self.numerical_df.hist(edgecolor='black', bins=20, ax=axes)
@@ -118,6 +147,7 @@ class DataAnalyzer:
         plt.tight_layout(rect=[0, 0, 1, 0.95])
         st.pyplot(fig)
 
+    def plot_boxplots(self):
         st.write("Box Plots:")
         fig, axes = plt.subplots(figsize=(12, 8))
         sns.boxplot(data=self.numerical_df, orient='h', ax=axes)
@@ -125,6 +155,7 @@ class DataAnalyzer:
         plt.tight_layout()
         st.pyplot(fig)
 
+    def plot_correlation_matrix(self):
         st.write("Correlation Matrix:")
         fig, axes = plt.subplots(figsize=(12, 10))
         correlation_matrix = self.numerical_df.corr()
@@ -135,15 +166,30 @@ class DataAnalyzer:
         plt.tight_layout()
         st.pyplot(fig)
 
+
 class Chatbot:
-    def __init__(self, api_key):
-        self.api_key = api_key
+    def __init__(self,system_instruction=""):
+        self.api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"
         self.model = None
         self.chat_history = []
         genai.configure(api_key=self.api_key)
+        self.system_instruction = system_instruction
 
-    def create_model(self, knowledge):
-        knowledge_input = "\n".join(knowledge)
+    def create_model(self):
+                
+        #Default System Instruction
+        if not self.system_instruction:
+            knowledge_input = "\n".join(st.session_state.knowledge)
+            self.system_instruction = (
+                "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
+                "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
+                "if the user asks about Visualizations like Histograms, Boxplots, Correlation Matrix, just use the findings as basis for the Visualizations. "
+                "You must input your output in a proper markdown language format. use bold for the important information."
+                "When dealing some statistics, always format it in markdown language"
+                "At the end of your response, ask the user if they want some questions, add some emoji based on how you feel"
+                f"\nHere's the data given:\n{knowledge_input}"
+            )
+            
         generation_config = {
             "temperature": 1,
             "top_p": 0.95,
@@ -154,16 +200,11 @@ class Chatbot:
         self.model = genai.GenerativeModel(
             model_name="gemini-1.5-flash",
             generation_config=generation_config,
-            system_instruction=(
-                "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
-                "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
-                "Make an Introduction, Key Statistics, Descriptive Statistics and insights "
-                "and give your output in a proper markdown language format.\n"
-                f"Here's the data given:\n{knowledge_input}"
-            ),
+            system_instruction= self.system_instruction,
         )
 
     def get_response(self, user_input: str, is_comprehensive=False):
+        
         response = self.model.generate_content(user_input)
         if not is_comprehensive:
             self.chat_history.append(("User", user_input))
@@ -176,12 +217,23 @@ def load_dataset():
     st.image(os.path.join(image_folder, "tutorial2.png"), caption="Click Copy API Command")
     kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
     
+    # Display current CSV information if available
+    if 'selected_csv' in st.session_state:
+        st.info(f"Currently loaded CSV: {os.path.basename(st.session_state.selected_csv)}")
+    
+    if 'csv_files' in st.session_state and len(st.session_state.csv_files) > 1:
+        st.session_state.selected_csv = st.selectbox(
+            "Select CSV file:",
+            st.session_state.csv_files,
+            format_func=os.path.basename
+        )
+    
     if st.button("Load Dataset", disabled=st.session_state.get('is_loading', False)):
         if kaggle_command:
             st.session_state.is_loading = True
             
             for key in list(st.session_state.keys()):
-                if key != 'is_loading':
+                if key not in ['is_loading', 'df', 'df_edited', 'csv_files', 'selected_csv']:
                     del st.session_state[key]
             
             dataset_name = kaggle_command.split()[-1]
@@ -197,6 +249,7 @@ def load_dataset():
                 
                 if df is not None:
                     st.session_state.df = df
+                    st.session_state.df_edited = df.copy()
                     st.session_state.dataset_loaded = True
                     st.session_state.analysis_complete = False
                     st.session_state.new_dataset_loaded = True  # Set flag for new dataset
@@ -210,6 +263,39 @@ def load_dataset():
             st.session_state.is_loading = False
         else:
             st.warning("Please enter a valid Kaggle API command.")
+
+    if 'df' in st.session_state and 'df_edited' in st.session_state:
+        st.subheader("Edit Dataset")
+        
+        # Button to edit the CSV
+        if st.button("Edit CSV"):
+            st.session_state.df_edited = st.data_editor(st.session_state.df_edited, num_rows="dynamic")
+        
+        # Button to view changes
+        if st.button("View Changes"):
+            changes = st.session_state.df_edited.compare(st.session_state.df)
+            if changes.empty:
+                st.info("No changes detected.")
+            else:
+                st.write("Changes detected:")
+                st.dataframe(changes)
+        
+        # Button to apply changes
+        if st.button("Apply Changes"):
+            st.session_state.df = st.session_state.df_edited.copy()
+            st.success("Changes applied successfully!")
+            st.session_state.analysis_complete = False
+            st.session_state.new_dataset_loaded = True
+
+        # Display some information about the dataset
+        st.subheader("Dataset Information")
+        st.write(f"Number of rows: {len(st.session_state.df)}")
+        st.write(f"Number of columns: {len(st.session_state.df.columns)}")
+        st.write("Column names:", ", ".join(st.session_state.df.columns))
+
+        # Display the first few rows of the dataset
+        st.subheader("Dataset Preview")
+        st.dataframe(st.session_state.df.head())
             
 
 def dashboard():
@@ -224,17 +310,25 @@ def dashboard():
             st.session_state.is_analyzing = True
             
             with st.spinner("Analyzing data..."):
-                analyzer = DataAnalyzer(st.session_state.df)
-                analyzer.explore_data()
-                analyzer.compute_statistics()
-                analyzer.visualize_data()
+                st.session_state.analyzer = DataAnalyzer(st.session_state.df)
+                st.session_state.analyzer.explore_data()
+                st.session_state.analyzer.compute_statistics()
+                st.session_state.analyzer.visualize_data()
                 
-                st.session_state.knowledge = [
-                    str(st.session_state.df.head()),
-                    str(st.session_state.df.describe()),
-                    str(st.session_state.df.info()),
-                    str(analyzer.numerical_df.corr())
-                ]
+                # 1. Head of the DataFrame
+                st.session_state['knowledge'].append("\nDataset Preview (First 5 rows):\n" + str(st.session_state.df.head()))
+                # 2. Statistical Summary
+                st.session_state['knowledge'].append("\nStatistical Summary of Numerical Columns:\n" + str(st.session_state.df.describe()))
+                # 3. DataFrame Information
+                st.session_state['knowledge'].append("\nDataFrame Information (Non-null counts, Data Types, Memory Usage):\n" + str(st.session_state.df.info()))
+                # 4. Correlation Matrix
+                st.session_state['knowledge'].append("\nNumerical Column Correlation Matrix:\n" + str(st.session_state.analyzer.numerical_df.corr()))
+                
+                # st.write(st.session_state['knowledge'][0])
+                # st.write(st.session_state['knowledge'][1])
+                # st.write(st.session_state['knowledge'][2])
+                # st.write(st.session_state['knowledge'][3])
+                # st.write(st.session_state['knowledge'][4])
                 
                 st.session_state.analysis_complete = True
                 st.success("Analysis complete!")
@@ -242,10 +336,10 @@ def dashboard():
             st.session_state.is_analyzing = False
     else:
         st.info("Analysis has already been completed. Load a new dataset to analyze again.")
-        analyzer = DataAnalyzer(st.session_state.df)
-        analyzer.explore_data()
-        analyzer.compute_statistics()
-        analyzer.visualize_data()
+        st.session_state.analyzer = DataAnalyzer(st.session_state.df)
+        st.session_state.analyzer.explore_data()
+        st.session_state.analyzer.compute_statistics()
+        st.session_state.analyzer.visualize_data()
 
 def chatbot():
     st.title("Dataset Chatbot")
@@ -274,9 +368,8 @@ def chatbot():
     
     if 'chatbot' not in st.session_state:
         with st.spinner("Initializing chatbot..."):
-            google_api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"
-            st.session_state.chatbot = Chatbot(google_api_key)
-            st.session_state.chatbot.create_model(st.session_state.knowledge)
+            st.session_state.chatbot = Chatbot()
+            st.session_state.chatbot.create_model()
     
     for role, message in st.session_state.chatbot.chat_history:
         col1, col2 = st.columns([6, 1]) if role == "User" else st.columns([1, 6])
@@ -284,10 +377,10 @@ def chatbot():
             if role == "User":
                 st.text_area("You:", value=message, height=100, max_chars=None, key=None, disabled=True)
             else:
-                st.image(os.path.join(image_folder, "chatbot.png"), width=35)
+                st.image(os.path.join(image_folder, "chatbot.png"), width=30)
         with col2:
             if role == "User":
-                st.image(os.path.join(image_folder, "user.png"), width=35)
+                st.image(os.path.join(image_folder, "user.png"), width=30)
             else:
                 st.markdown(f" {message}")
     
@@ -316,7 +409,54 @@ def chatbot():
         st.session_state.is_asking = False
     elif ask_button:
         st.warning("Please enter a question.")
+        
+def formatMessage(message):
+    # Mapping keywords to their display format
+    visual_mapping = {
+        "%HISTOGRAMS%": ["plot_histograms"],
+        "%BOXPLOTS%": ["plot_boxplots"],
+        "%CORRELATION MATRIX%": ["plot_correlation_matrix"]
+    }
+    
+    formatted_parts = []
+    current_index = 0
+    
+    while current_index < len(message):
+        next_keyword_index = len(message)
+        next_keyword = None
+        
+        for keyword in visual_mapping.keys():
+            keyword_index = message.find(keyword, current_index)
+            if keyword_index != -1 and keyword_index < next_keyword_index:
+                next_keyword_index = keyword_index
+                next_keyword = keyword
+        
+        if next_keyword:
+            # Add text before the keyword
+            if current_index != next_keyword_index:
+                formatted_parts.append(("text", message[current_index:next_keyword_index].strip()))
+            
+            # Add the visualization
+            formatted_parts.append(("visualization", next_keyword))
+            current_index = next_keyword_index + len(next_keyword)
+        else:
+            # Add remaining text
+            formatted_parts.append(("text", message[current_index:].strip()))
+            break
+    
+    # Display formatted data and visualize
+    for part_type, content in formatted_parts:
+        if part_type == "text" and content:
+            st.markdown(content)
+        elif part_type == "visualization":
+            with st.spinner(f"Generating visualization for {content}..."):
+                for method_name in visual_mapping[content]:
+                    method = getattr(st.session_state.analyzer, method_name)
+                    method()
+            st.write("")  # Add space after visualization
+            
 
+            
 def get_comprehensive_analysis():
     st.title("Comprehensive Analysis")
     
@@ -329,10 +469,18 @@ def get_comprehensive_analysis():
         return
     
     if 'chatbot' not in st.session_state:
+        knowledge_input = "\n".join(st.session_state.knowledge)
+        system_instruction = (
+                "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
+                "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
+                "In Visualizations and Interpretations part, add %HISTOGRAMS% to set as a placeholder for a photo of the Histograms same for Boxplots its %BOXPLOTS% and %CORRELATION MATRIX% for Correlation Matrix. add /n in between. "
+                "The display must be as detailed as possible and in this order: Introduction, Key Statistics, Descriptive Statistics,Visualizations and Interpretations, insights and conclusions. "
+                "You must input your output in a proper markdown language format\n"
+                f"Here's the data given:\n{knowledge_input}"
+            )
         with st.spinner("Initializing chatbot..."):
-            google_api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"
-            st.session_state.chatbot = Chatbot(google_api_key)
-            st.session_state.chatbot.create_model(st.session_state.knowledge)
+            st.session_state.chatbot = Chatbot(system_instruction)
+            st.session_state.chatbot.create_model()
     
     # Check if we need to generate a new comprehensive analysis
     if 'comprehensive_analysis' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
@@ -340,7 +488,7 @@ def get_comprehensive_analysis():
             st.session_state.comprehensive_analysis = st.session_state.chatbot.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
         st.session_state.new_dataset_loaded = False  # Reset the flag
     
-    st.markdown(st.session_state.comprehensive_analysis)
+    formatMessage(st.session_state.comprehensive_analysis)
     
 
 
