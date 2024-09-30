@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import google.generativeai as genai
 
+from PIL import Image
+
 # Set page configuration
 st.set_page_config(
     page_title="MachineLearner's Dataset Analyzer",
@@ -194,11 +196,14 @@ class Chatbot:
             self.chat_history.append(("Assistant", response.text))
         return response.text
 
-def load_dataset():
+def ui_load_dataset():
     st.title("Import your Kaggle Dataset")
     st.image(os.path.join(image_folder, "tutorial1.png"), caption="Opening your Kaggle Dataset and press this button to open the menu")
     st.image(os.path.join(image_folder, "tutorial2.png"), caption="Click Copy API Command")
-    kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
+    kaggle_command = st.text_input(
+    "Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):",
+    value="kaggle datasets download -d hanaksoy/customer-purchasing-behaviors"
+)
     
     # Initialize session state variables if they don't exist
     if 'csv_files' not in st.session_state:
@@ -209,7 +214,7 @@ def load_dataset():
         st.session_state.dataset_loaded = False
 
     # Load Kaggle dataset when 'Load Dataset' button is clicked
-    if st.button("Load Dataset", disabled=st.session_state.get('is_loading', False)):
+    if st.button("Import Kaggle Dataset", disabled=st.session_state.get('is_loading', False)):
         if kaggle_command:
             st.session_state.is_loading = True
             
@@ -230,7 +235,7 @@ def load_dataset():
                     st.success(f"{message} Found {len(csv_files)} CSV files.")
                     
                     # Debug information
-                    st.write("Debug: CSV files found:")
+                    st.write("CSV files found:")
                     for csv_file in csv_files:
                         st.write(csv_file)
                     
@@ -253,8 +258,8 @@ def load_dataset():
         csv_options = [os.path.basename(csv) for csv in st.session_state.csv_files]
         
         # Debug information
-        st.write(f"Debug: Number of CSV options: {len(csv_options)}")
-        st.write("Debug: CSV options:", csv_options)
+        st.write(f"Number of CSV options: {len(csv_options)}")
+        st.write("CSV options:", csv_options)
         
         selected_csv = st.selectbox("Choose a CSV file:", csv_options)
         
@@ -306,7 +311,10 @@ def load_dataset():
         # Display the first few rows of the dataset
         st.subheader("Dataset Preview")
         st.dataframe(st.session_state.df.head())
-def dashboard():
+        
+        
+        
+def ui_dashboard():
     st.title("Dataset Dashboard")
     
     if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
@@ -349,22 +357,7 @@ def dashboard():
         st.session_state.analyzer.compute_statistics()
         st.session_state.analyzer.visualize_data()
 
-def chatbot():
-    st.title("Dataset Chatbot")
-    
-    st.markdown("""
-        <style>
-        .fixed-bottom {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background-color: white;
-            padding: 10px;
-            box-shadow: 0px -2px 10px rgba(0, 0, 100, 1);
-        }
-        </style>
-    """, unsafe_allow_html=True)
+def ui_chatbot():
     
     if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
         st.warning("Please load a dataset first.")
@@ -373,50 +366,81 @@ def chatbot():
     if 'analysis_complete' not in st.session_state or not st.session_state.analysis_complete:
         st.warning("Please complete the analysis in the Dashboard page first.")
         return
-    
+            
+    # Initialize session state variables
     if 'chatbot' not in st.session_state:
-        with st.spinner("Initializing chatbot..."):
-            st.session_state.chatbot = Chatbot()
-            st.session_state.chatbot.create_model()
-    
-    for role, message in st.session_state.chatbot.chat_history:
-        col1, col2 = st.columns([6, 1]) if role == "User" else st.columns([1, 6])
-        with col1:
-            if role == "User":
-                st.text_area("You:", value=message, height=100, max_chars=None, key=None, disabled=True)
-            else:
-                st.image(os.path.join(image_folder, "chatbot.png"), width=30)
-        with col2:
-            if role == "User":
-                st.image(os.path.join(image_folder, "user.png"), width=30)
-            else:
-                st.markdown(f" {message}")
-    
-    st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
-    user_input = st.text_input("Your question:")
-    ask_button = st.button("Ask", disabled=st.session_state.get('is_asking', False))
+        st.session_state.chatbot = Chatbot()
+        st.session_state.chatbot.create_model()
+        st.session_state.chat_history = []
+        st.session_state.user_input = ""
+
+    # Function to clear chat history
+    def clear_chat_history():
+        st.session_state.chat_history = []
+
+    # CSS for chat bubbles and fixed input
+    st.markdown("""
+        <style>
+        #root > div:nth-child(1) > div > div > div > div > section > div {padding-bottom: 70px;}
+        .user-bubble, .bot-bubble {
+            padding: 20px;
+            border-radius: 10px;
+            margin: 5px 0;
+            max-width: 95%;
+            word-wrap: break-word;
+        }
+        .user-bubble {
+            background-color: #e0cab8;
+            color: black;
+            align-self: flex-end;
+            text-align: right;
+            margin-left: auto;
+        }
+        .bot-bubble {
+            background-color:  #b49577 ;
+            color: black;
+            align-self: flex-start;
+            margin-right: auto;
+        }
+        .stTextInput > div > div > input {
+            border-radius: 25px;
+        }
+        .stButton > button {
+            border-radius: 25px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Function to handle chat input and update
+    def handle_input():
+        user_input = st.session_state.user_input
+        if user_input:
+            with st.spinner("Generating response..."):
+                response = st.session_state.chatbot.get_response(user_input)
+                st.session_state.chat_history.append(("User", user_input))
+                st.session_state.chat_history.append(("Bot", response))
+            st.session_state.user_input = ""  # Clear the input box
+
+    # Chat container
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+    for role, message in st.session_state.chat_history:
+        bubble_class = "user-bubble" if role == "User" else "bot-bubble"
+        st.markdown(f'<div class="{bubble_class}">{message}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    if ask_button and user_input:
-        st.session_state.is_asking = True
-        with st.spinner("Generating response..."):
-            response = st.session_state.chatbot.get_response(user_input)
-            
-            col1, col2 = st.columns([6, 1])
-            with col1:
-                st.text_area("You:", value=user_input, height=100, max_chars=None, key=None, disabled=True)
-            with col2:
-                st.image(os.path.join(image_folder, "user.png"), width=35)
-            
-            col1, col2 = st.columns([1, 6])
-            with col1:
-                st.image(os.path.join(image_folder, "chatbot.png"), width=35)
-            with col2:
-                st.markdown(f"{response}")
-        
-        st.session_state.is_asking = False
-    elif ask_button:
-        st.warning("Please enter a question.")
+
+    # Input section at the bottom
+    st.markdown('<div class="fixed-bottom">', unsafe_allow_html=True)
+    cols = st.columns([4, 1])
+    with cols[0]:
+        st.text_input("Your question:", key="user_input", on_change=handle_input, label_visibility="collapsed")
+    with cols[1]:
+        st.button("Submit", on_click=handle_input)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Clear chat history button (placed above the chat container)
+    if st.button("Clear Chat History", on_click=clear_chat_history):
+        st.success("Chat history cleared.")
+
         
 def formatMessage(message):
     # Mapping keywords to their display format
@@ -465,7 +489,7 @@ def formatMessage(message):
             
 
             
-def get_comprehensive_analysis():
+def ui_comprehensive_analysis():
     st.title("Comprehensive Analysis")
     
     if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
@@ -476,7 +500,7 @@ def get_comprehensive_analysis():
         st.warning("Please complete the analysis in the Dashboard page first.")
         return
     
-    if 'chatbot' not in st.session_state:
+    if 'analysis_data' not in st.session_state:
         knowledge_input = "\n".join(st.session_state.knowledge)
         system_instruction = (
                 "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
@@ -486,20 +510,20 @@ def get_comprehensive_analysis():
                 "You must input your output in a proper markdown language format\n"
                 f"Here's the data given:\n{knowledge_input}"
             )
-        with st.spinner("Initializing chatbot..."):
-            st.session_state.chatbot = Chatbot(system_instruction)
-            st.session_state.chatbot.create_model()
+        with st.spinner("Initializing Virtual Data Analyst..."):
+            st.session_state.analysis_data = Chatbot(system_instruction)
+            st.session_state.analysis_data.create_model()
     
     # Check if we need to generate a new comprehensive analysis
-    if 'comprehensive_analysis' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
-        with st.spinner("Generating comprehensive analysis..."):
-            st.session_state.comprehensive_analysis = st.session_state.chatbot.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
+    if 'analysis_report' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
+        with st.spinner("Analyzing and generating a comprehensive analysis..."):
+            st.session_state.analysis_report = st.session_state.analysis_data.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
         st.session_state.new_dataset_loaded = False  # Reset the flag
     
-    formatMessage(st.session_state.comprehensive_analysis)
+    formatMessage(st.session_state.analysis_report)
     
 
-def about_page():    
+def ui_about_page():    
     
     st.markdown("""
     <style>
@@ -621,15 +645,15 @@ def main():
     page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview", "Comprehensive Analysis", "Ask Assistant", "About"])
     
     if page == "Load Dataset":
-        load_dataset()
+        ui_load_dataset()
     elif page == "Dataset Overview":
-        dashboard()
+        ui_dashboard()
     elif page == "Comprehensive Analysis":
-        get_comprehensive_analysis()
+        ui_comprehensive_analysis()
     elif page == "Ask Assistant":
-        chatbot()
+        ui_chatbot()
     elif page == "About":
-        about_page()
+        ui_about_page()
 
 if __name__ == "__main__":
     main()
