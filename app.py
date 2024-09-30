@@ -499,6 +499,95 @@ def get_comprehensive_analysis():
     formatMessage(st.session_state.comprehensive_analysis)
     
 
+def about_page():    
+    
+    st.markdown("""
+    <style>
+    .team-member {
+        display: flex;
+        align-items: center;
+        margin-bottom: 2rem;
+        animation: pulse 3s ease-in-out infinite;
+    }
+    .team-member:nth-child(1) {
+        animation-delay: 0.5s;
+    }
+    .team-member:nth-child(2) {
+        animation-delay: 1s;
+    }
+    .team-member:nth-child(3) {
+        animation-delay: 1.5s;
+    }
+    .team-member img {
+        width: 100px;
+        height: 100px;
+        border-radius: 50%;
+        object-fit: cover;
+    }
+    .member-info {
+        display: flex;
+        flex-direction: column;
+    }
+    .member-name {
+        font-size: 1.8rem;  /* Increased text size */
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    .center-text {
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 2s ease-in-out forwards;
+    }
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    # Centered and animated header for the team members
+    st.markdown("<h2 class='center-text'>Team MachineLearners Midterm Project Members</h2>", unsafe_allow_html=True)
+
+    # Team members with corresponding image files
+    members = [
+        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
+        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
+        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
+        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
+        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"}
+        # Add any additional members here
+    ]
+
+    # Iterate over members and render their information with continuous animation
+    for i, member in enumerate(members):
+        # Construct the full image path
+        image_path = os.path.join(image_folder, member['image'])
+        
+        # Check if the image file exists
+        if os.path.exists(image_path):
+            # Display member info with animation
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                st.image(image_path, width=100)  # Display the image correctly
+            with col2:
+                st.markdown(f"<div class='team-member'><div class='member-info'><div class='member-name'>{member['name']}</div></div></div>", unsafe_allow_html=True)
+        else:
+            st.warning(f"Image not found: {image_path}")
+
+    st.markdown("---")
+    st.markdown("""
+    <p style='text-align: center; font-style: italic;'>
+    MachineLearners: Transforming data into insights, one dataset at a time.
+    </p>
+    """, unsafe_allow_html=True)
+
+    
+    
 
 def main():
     st.markdown("""
@@ -529,7 +618,7 @@ def main():
         st.session_state.is_asking = False
     
     st.sidebar.title("MachineLearner's Dataset Analyzer")
-    page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview", "Comprehensive Analysis", "Chatbot Assistant"])
+    page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview", "Comprehensive Analysis", "Ask Assistant", "About"])
     
     if page == "Load Dataset":
         load_dataset()
@@ -537,8 +626,10 @@ def main():
         dashboard()
     elif page == "Comprehensive Analysis":
         get_comprehensive_analysis()
-    elif page == "Chatbot Assistant":
+    elif page == "Ask Assistant":
         chatbot()
+    elif page == "About":
+        about_page()
 
 if __name__ == "__main__":
     main()
