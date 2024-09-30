@@ -21,7 +21,6 @@ image_folder = os.path.join(os.path.dirname(__file__), "img")
 class KaggleDataUploader:
     def __init__(self, dataset_name):
         self.dataset_name = dataset_name
-        self.df = None
         self.datasets_dir = "datasets"
         self.dataset_subdir = os.path.join(self.datasets_dir, self.dataset_name.replace('/', '_'))
         os.makedirs(self.dataset_subdir, exist_ok=True)
@@ -31,30 +30,16 @@ class KaggleDataUploader:
         with open(os.path.expanduser('~/.kaggle/kaggle.json'), 'w') as f:
             f.write(kaggle_json_content)
         os.chmod(os.path.expanduser('~/.kaggle/kaggle.json'), 0o600)
-        st.success("Kaggle API credentials authorized successfully.")
 
     def download_dataset(self):
         download_command = f"kaggle datasets download -d {self.dataset_name} -p {self.dataset_subdir} --unzip"
         os.system(download_command)
-        st.success(f"Dataset {self.dataset_name} downloaded successfully.")
         
         csv_files = self._find_csv_files(self.dataset_subdir)
         if not csv_files:
-            st.error("No CSV files found in the dataset.")
-            return None
+            return None, "No CSV files found in the dataset."
         
-        st.session_state.csv_files = csv_files  # Store CSV files in session state
-        
-        if len(csv_files) == 1:
-            selected_file = csv_files[0]
-        else:
-            if 'selected_csv' not in st.session_state:
-                st.session_state.selected_csv = csv_files[0]  # Default to first CSV
-            selected_file = st.session_state.selected_csv
-        
-        st.session_state.selected_csv = selected_file  # Store selected CSV in session state
-        self.df = pd.read_csv(selected_file)
-        return self.df
+        return csv_files, "Dataset downloaded successfully."
 
     def _find_csv_files(self, path):
         csv_files = []
@@ -68,15 +53,13 @@ class KaggleDataUploader:
         metadata_path = os.path.join(self.dataset_subdir, f"dataset-metadata.json")
         metadata_command = f"kaggle datasets metadata {self.dataset_name} -p {self.dataset_subdir}"
         os.system(metadata_command)
-        st.success(f"Metadata for {self.dataset_name} downloaded successfully.")
         
         if os.path.exists(metadata_path):
             with open(metadata_path, 'r') as f:
                 metadata = json.load(f)
-                st.session_state['knowledge'] = ["dataset metadata\n```json\n" + json.dumps(metadata, indent=2) + "\n```"]
+            return metadata
         else:
-            st.error("Metadata file not found.")
-            
+            return None
             
 class DataAnalyzer:
     def __init__(self, df):
@@ -217,24 +200,18 @@ def load_dataset():
     st.image(os.path.join(image_folder, "tutorial2.png"), caption="Click Copy API Command")
     kaggle_command = st.text_input("Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):")
     
-    # Display current CSV information if available
-    if 'selected_csv' in st.session_state:
-        st.info(f"Currently loaded CSV: {os.path.basename(st.session_state.selected_csv)}")
-    
-    if 'csv_files' in st.session_state and len(st.session_state.csv_files) > 1:
-        st.session_state.selected_csv = st.selectbox(
-            "Select CSV file:",
-            st.session_state.csv_files,
-            format_func=os.path.basename
-        )
-    
+    # Initialize session state variables if they don't exist
+    if 'csv_files' not in st.session_state:
+        st.session_state.csv_files = []
+    if 'selected_csv' not in st.session_state:
+        st.session_state.selected_csv = None
+    if 'dataset_loaded' not in st.session_state:
+        st.session_state.dataset_loaded = False
+
+    # Load Kaggle dataset when 'Load Dataset' button is clicked
     if st.button("Load Dataset", disabled=st.session_state.get('is_loading', False)):
         if kaggle_command:
             st.session_state.is_loading = True
-            
-            for key in list(st.session_state.keys()):
-                if key not in ['is_loading', 'df', 'df_edited', 'csv_files', 'selected_csv']:
-                    del st.session_state[key]
             
             dataset_name = kaggle_command.split()[-1]
             
@@ -245,25 +222,59 @@ def load_dataset():
                     "key": "dfbe240463c495fd73afbd59042f34d9"
                 }'''
                 kaggle_data.set_kaggle_credentials(kaggle_json_content)
-                df = kaggle_data.download_dataset()
+                csv_files, message = kaggle_data.download_dataset()
                 
-                if df is not None:
-                    st.session_state.df = df
-                    st.session_state.df_edited = df.copy()
+                if csv_files:
+                    st.session_state.csv_files = csv_files
                     st.session_state.dataset_loaded = True
-                    st.session_state.analysis_complete = False
-                    st.session_state.new_dataset_loaded = True  # Set flag for new dataset
-                    st.success("Dataset loaded successfully!")
+                    st.success(f"{message} Found {len(csv_files)} CSV files.")
+                    
+                    # Debug information
+                    st.write("Debug: CSV files found:")
+                    for csv_file in csv_files:
+                        st.write(csv_file)
                     
                     # Download and display metadata
-                    kaggle_data.download_metadata()
+                    metadata = kaggle_data.download_metadata()
+                    if metadata:
+                        st.session_state['knowledge'] = ["dataset metadata\n```json\n" + json.dumps(metadata, indent=2) + "\n```"]
+                    else:
+                        st.warning("Metadata not found for the dataset.")
                 else:
-                    st.error("Failed to load the dataset. Please check your Kaggle command and try again.")
+                    st.error(f"Failed to load the dataset. {message}")
             
             st.session_state.is_loading = False
         else:
             st.warning("Please enter a valid Kaggle API command.")
 
+    # Display CSV selection if multiple CSV files are found
+    if st.session_state.csv_files:
+        st.subheader("Select CSV File")
+        csv_options = [os.path.basename(csv) for csv in st.session_state.csv_files]
+        
+        # Debug information
+        st.write(f"Debug: Number of CSV options: {len(csv_options)}")
+        st.write("Debug: CSV options:", csv_options)
+        
+        selected_csv = st.selectbox("Choose a CSV file:", csv_options)
+        
+        if st.button("Load Selected CSV"):
+            csv_path = next(csv for csv in st.session_state.csv_files if os.path.basename(csv) == selected_csv)
+            try:
+                df = pd.read_csv(csv_path)
+                st.session_state.df = df
+                st.session_state.df_edited = df.copy()
+                st.session_state.selected_csv = csv_path
+                st.session_state.analysis_complete = False
+                st.success(f"Loaded CSV: {selected_csv}")
+            except Exception as e:
+                st.error(f"Error loading CSV: {str(e)}")
+
+    # Display current CSV information if available
+    if st.session_state.get('selected_csv'):
+        st.info(f"Currently loaded CSV: {os.path.basename(st.session_state.selected_csv)}")
+
+    # If dataset is loaded, show additional options
     if 'df' in st.session_state and 'df_edited' in st.session_state:
         st.subheader("Edit Dataset")
         
@@ -285,7 +296,6 @@ def load_dataset():
             st.session_state.df = st.session_state.df_edited.copy()
             st.success("Changes applied successfully!")
             st.session_state.analysis_complete = False
-            st.session_state.new_dataset_loaded = True
 
         # Display some information about the dataset
         st.subheader("Dataset Information")
@@ -296,8 +306,6 @@ def load_dataset():
         # Display the first few rows of the dataset
         st.subheader("Dataset Preview")
         st.dataframe(st.session_state.df.head())
-            
-
 def dashboard():
     st.title("Dataset Dashboard")
     
@@ -473,7 +481,7 @@ def get_comprehensive_analysis():
         system_instruction = (
                 "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
                 "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
-                "In Visualizations and Interpretations part, add %HISTOGRAMS% to set as a placeholder for a photo of the Histograms same for Boxplots its %BOXPLOTS% and %CORRELATION MATRIX% for Correlation Matrix. add /n in between. "
+                "In Visualizations and Interpretations part, replace the Histogram Title to %HISTOGRAMS% and the same for Boxplots its %BOXPLOTS% and %CORRELATION MATRIX% for Correlation Matrix."
                 "The display must be as detailed as possible and in this order: Introduction, Key Statistics, Descriptive Statistics,Visualizations and Interpretations, insights and conclusions. "
                 "You must input your output in a proper markdown language format\n"
                 f"Here's the data given:\n{knowledge_input}"
