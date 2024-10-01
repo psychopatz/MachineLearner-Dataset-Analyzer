@@ -6,12 +6,12 @@ import json
 import matplotlib.pyplot as plt
 import seaborn as sns
 import google.generativeai as genai
-
-from PIL import Image
+import re
+import time
 
 # Set page configuration
 st.set_page_config(
-    page_title="MachineLearner's Dataset Analyzer",
+    page_title="Dataset Analyzer",
     page_icon="⚡",
     layout="centered",
     initial_sidebar_state="expanded"
@@ -64,12 +64,6 @@ class KaggleDataUploader:
         else:
             return None
             
-import streamlit as st
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import time
 
 class DataAnalyzer:
     def __init__(self, df):
@@ -165,8 +159,6 @@ class DataAnalyzer:
         plt.tight_layout()
         st.pyplot(fig)
 
-
-
 class Chatbot:
     def __init__(self,system_instruction=""):
         self.api_key = "AIzaSyBlgD75p_eQ-doSPnNFoyrtDG1Z5BfSt-s"
@@ -183,9 +175,9 @@ class Chatbot:
             self.system_instruction = (
                 "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
                 "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
-                "if the user asks about Visualizations like Histograms, Boxplots, Correlation Matrix, just use the findings as basis for the Visualizations. "
-                "You must input your output in a proper markdown language format. use bold for the important information."
-                "When dealing some statistics, always format it in markdown language"
+                "if the user asks about Visualizations like Histograms, Boxplots, Correlation Matrix, just use the findings as basis for the Visualizations and dont nag the user about it. "
+                "You must input your output in a proper markdown language format. Avoid using heading tags. Avoid using bold and italic markup tags. use <strong> tags for the important information instead."
+                "When dealing some statistics and tables, always format it in html language."
                 "At the end of your response, ask the user if they want some questions, add some emoji based on how you feel"
                 f"\nHere's the data given:\n{knowledge_input}"
             )
@@ -210,6 +202,7 @@ class Chatbot:
             self.chat_history.append(("User", user_input))
             self.chat_history.append(("Assistant", response.text))
         return response.text
+
 def formatMessage(message):
     # Mapping keywords to their display format
     visual_mapping = {
@@ -217,25 +210,25 @@ def formatMessage(message):
         "%BOXPLOTS%": ["plot_boxplots"],
         "%CORRELATION MATRIX%": ["plot_correlation_matrix"]
     }
-    
+   
     formatted_parts = []
     current_index = 0
-    
+   
     while current_index < len(message):
         next_keyword_index = len(message)
         next_keyword = None
-        
+       
         for keyword in visual_mapping.keys():
             keyword_index = message.find(keyword, current_index)
             if keyword_index != -1 and keyword_index < next_keyword_index:
                 next_keyword_index = keyword_index
                 next_keyword = keyword
-        
+       
         if next_keyword:
             # Add text before the keyword
             if current_index != next_keyword_index:
                 formatted_parts.append(("text", message[current_index:next_keyword_index].strip()))
-            
+           
             # Add the visualization
             formatted_parts.append(("visualization", next_keyword))
             current_index = next_keyword_index + len(next_keyword)
@@ -243,7 +236,7 @@ def formatMessage(message):
             # Add remaining text
             formatted_parts.append(("text", message[current_index:].strip()))
             break
-    
+   
     # Add CSS for bounce and fade animations
     st.markdown("""
         <style>
@@ -263,7 +256,23 @@ def formatMessage(message):
     # Display formatted data and visualize
     for part_type, content in formatted_parts:
         if part_type == "text" and content:
-            st.markdown(f"<div class='bounce-fade'>{content}</div>", unsafe_allow_html=True)
+            # Process the text content for Markdown headers, bold text, and bullet points
+            lines = content.split('\n')
+            for line in lines:
+                line = line.strip()
+                if line.startswith('##'):
+                    # It's a header, use Markdown directly
+                    st.markdown(line)
+                elif line.startswith('- ') or line.startswith('* '):
+                    # It's a bullet point, process it separately
+                    bullet = line[:2]
+                    rest = line[2:]
+                    formatted_line = f"{bullet}<span class='bounce-fade'>{process_inline_markdown(rest)}</span>"
+                    st.markdown(formatted_line, unsafe_allow_html=True)
+                else:
+                    # Process other Markdown elements within the line
+                    formatted_line = f"<span class='bounce-fade'>{process_inline_markdown(line)}</span>"
+                    st.markdown(formatted_line, unsafe_allow_html=True)
         elif part_type == "visualization":
             st.markdown("<div class='loading'></div>", unsafe_allow_html=True)  # Show loading animation
             with st.spinner(f"Generating visualization for {content}..."):
@@ -272,7 +281,14 @@ def formatMessage(message):
                     method()
             st.write("")  # Add space after visualization
 
-
+def process_inline_markdown(text):
+    # Process bold text
+    text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
+    # Process italic text
+    text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
+    # Process code
+    text = re.sub(r'`(.*?)`', r'<code>\1</code>', text)
+    return text
 
 
 def ui_load_dataset():
@@ -609,7 +625,8 @@ def ui_chatbot():
             border-radius: 10px;
             margin: 5px 0;
             max-width: 95%;
-            word-wrap: break-word;
+            overflow-x: auto;  /* Enable horizontal scrolling */
+            word-break: break-word;  /* Break words to prevent overflow */
             opacity: 0;
         }
         .user-bubble {
