@@ -34,6 +34,7 @@ class KaggleDataUploader:
         os.chmod(os.path.expanduser('~/.kaggle/kaggle.json'), 0o600)
 
     def download_dataset(self):
+        st.session_state.new_dataset_loaded = True
         download_command = f"kaggle datasets download -d {self.dataset_name} -p {self.dataset_subdir} --unzip"
         os.system(download_command)
         
@@ -63,6 +64,13 @@ class KaggleDataUploader:
         else:
             return None
             
+import streamlit as st
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import time
+
 class DataAnalyzer:
     def __init__(self, df):
         self.df = df
@@ -74,12 +82,12 @@ class DataAnalyzer:
         num_entries, num_columns = self.df.shape
         st.write(f"Number of Entries: {num_entries}")
         st.write(f"Number of Columns: {num_columns}")
-        
+
         st.subheader("Data Columns")
         columns_info = self.df.dtypes.reset_index()
         columns_info.columns = ['Column', 'Data Type']
         non_null_counts = self.df.notnull().sum().values
-        
+
         for idx, row in columns_info.iterrows():
             st.write(f"{row['Column']}: {non_null_counts[idx]} non-null {row['Data Type']}")
 
@@ -117,12 +125,18 @@ class DataAnalyzer:
         if filterDisplay:
             for key in filterDisplay:
                 if key in visualizations:
-                    visualizations[key]()  # Call the corresponding plot function
+                    self.show_with_animation(visualizations[key])  # Call the corresponding plot function with animation
         else:
             # If filterDisplay is empty, display all visualizations
             st.subheader("Visual Representation of Descriptive Statistics")
             for key in visualizations:
-                visualizations[key]()
+                self.show_with_animation(visualizations[key])  # Call the corresponding plot function with animation
+
+    def show_with_animation(self, plot_func):
+        # Show a loading spinner while the plot is being created
+        with st.spinner('Generating plot...'):
+            time.sleep(1)  # Simulate some delay for the loading effect
+            plot_func()  # Call the plot function
 
     def plot_histograms(self):
         st.write("Histograms:")
@@ -150,6 +164,7 @@ class DataAnalyzer:
         plt.yticks(rotation=0, fontsize=10)
         plt.tight_layout()
         st.pyplot(fig)
+
 
 
 class Chatbot:
@@ -195,14 +210,99 @@ class Chatbot:
             self.chat_history.append(("User", user_input))
             self.chat_history.append(("Assistant", response.text))
         return response.text
+def formatMessage(message):
+    # Mapping keywords to their display format
+    visual_mapping = {
+        "%HISTOGRAMS%": ["plot_histograms"],
+        "%BOXPLOTS%": ["plot_boxplots"],
+        "%CORRELATION MATRIX%": ["plot_correlation_matrix"]
+    }
+    
+    formatted_parts = []
+    current_index = 0
+    
+    while current_index < len(message):
+        next_keyword_index = len(message)
+        next_keyword = None
+        
+        for keyword in visual_mapping.keys():
+            keyword_index = message.find(keyword, current_index)
+            if keyword_index != -1 and keyword_index < next_keyword_index:
+                next_keyword_index = keyword_index
+                next_keyword = keyword
+        
+        if next_keyword:
+            # Add text before the keyword
+            if current_index != next_keyword_index:
+                formatted_parts.append(("text", message[current_index:next_keyword_index].strip()))
+            
+            # Add the visualization
+            formatted_parts.append(("visualization", next_keyword))
+            current_index = next_keyword_index + len(next_keyword)
+        else:
+            # Add remaining text
+            formatted_parts.append(("text", message[current_index:].strip()))
+            break
+    
+    # Add CSS for bounce and fade animations
+    st.markdown("""
+        <style>
+        .bounce-fade {
+            display: inline-block;
+            animation: bounce-fade 1s ease-in-out forwards;
+        }
+        @keyframes bounce-fade {
+            0% { transform: translateY(0); opacity: 0; }
+            30% { transform: translateY(-10px); opacity: 1; }
+            60% { transform: translateY(5px); }
+            100% { transform: translateY(0); }
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    # Display formatted data and visualize
+    for part_type, content in formatted_parts:
+        if part_type == "text" and content:
+            st.markdown(f"<div class='bounce-fade'>{content}</div>", unsafe_allow_html=True)
+        elif part_type == "visualization":
+            st.markdown("<div class='loading'></div>", unsafe_allow_html=True)  # Show loading animation
+            with st.spinner(f"Generating visualization for {content}..."):
+                for method_name in visual_mapping[content]:
+                    method = getattr(st.session_state.analyzer, method_name)
+                    method()
+            st.write("")  # Add space after visualization
+
+
+
 
 def ui_load_dataset():
-    st.title("Import your Kaggle Dataset")
+    st.markdown("""
+    <style>
+    .center-text {
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 2s ease-in-out forwards, pulse 2s infinite ease-in-out;
+    }
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    
+    st.markdown("<h2 class='center-text'>Import your Kaggle Dataset 📩</h2>", unsafe_allow_html=True)
+    
     st.image(os.path.join(image_folder, "tutorial1.png"), caption="Opening your Kaggle Dataset and press this button to open the menu")
     st.image(os.path.join(image_folder, "tutorial2.png"), caption="Click Copy API Command")
     kaggle_command = st.text_input(
     "Enter Kaggle API command (Example: kaggle datasets download -d hanaksoy/customer-purchasing-behaviors):",
-    value="kaggle datasets download -d hanaksoy/customer-purchasing-behaviors"
+    value=st.session_state.get('dataset_link', 'kaggle datasets download -d hanaksoy/customer-purchasing-behaviors'),
 )
     
     # Initialize session state variables if they don't exist
@@ -230,12 +330,12 @@ def ui_load_dataset():
                 csv_files, message = kaggle_data.download_dataset()
                 
                 if csv_files:
+                    st.session_state.dataset_link = kaggle_command
                     st.session_state.csv_files = csv_files
                     st.session_state.dataset_loaded = True
                     st.success(f"{message} Found {len(csv_files)} CSV files.")
-                    
-                    # Debug information
-                    st.write("CSV files found:")
+
+                    # Display CSV files
                     for csv_file in csv_files:
                         st.write(csv_file)
                     
@@ -257,9 +357,8 @@ def ui_load_dataset():
         st.subheader("Select CSV File")
         csv_options = [os.path.basename(csv) for csv in st.session_state.csv_files]
         
-        # Debug information
-        st.write(f"Number of CSV options: {len(csv_options)}")
-        st.write("CSV options:", csv_options)
+        # st.write(f"Number of CSV options: {len(csv_options)}")
+        st.write("CSV Files Found:", csv_options)
         
         selected_csv = st.selectbox("Choose a CSV file:", csv_options)
         
@@ -312,12 +411,30 @@ def ui_load_dataset():
         st.subheader("Dataset Preview")
         st.dataframe(st.session_state.df.head())
         
-        
-        
-def ui_dashboard():
-    st.title("Dataset Dashboard")
+def ui_dataset_overview():
+    st.markdown("""
+    <style>
+    .center-text {
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 2s ease-in-out forwards, pulse 2s infinite ease-in-out;
+    }
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<h2 class='center-text'>Dataset Dashboard Overview 📊</h2>", unsafe_allow_html=True)
     
-    if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
+    
+    if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded or 'df' not in st.session_state:
         st.warning("Please load a dataset first.")
         return
     
@@ -357,7 +474,93 @@ def ui_dashboard():
         st.session_state.analyzer.compute_statistics()
         st.session_state.analyzer.visualize_data()
 
+def ui_comprehensive_analysis():
+    st.markdown("""
+    <style>
+    .center-text {
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 2s ease-in-out forwards, pulse 2s infinite ease-in-out;
+    }
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    
+    st.markdown("<h2 class='center-text'>Comprehensive Analysis🔍</h2>", unsafe_allow_html=True)
+    
+    if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
+        st.warning("Please load a dataset first.")
+        return
+    
+    if 'analysis_complete' not in st.session_state or not st.session_state.analysis_complete:
+        st.warning("Please complete the analysis in the Dashboard page first.")
+        return
+    
+    if 'analysis_data' not in st.session_state:
+        knowledge_input = "\n".join(st.session_state.knowledge)
+        system_instruction = (
+                "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
+                "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
+                "In Visualizations and Interpretations part, replace the Histogram Title to %HISTOGRAMS% and the same for Boxplots its %BOXPLOTS% and %CORRELATION MATRIX% for Correlation Matrix. Dont turn this into bullet form just encase it with newline"
+                "The display must be as detailed as possible and in this order: Introduction, Key Statistics, Descriptive Statistics,Visualizations and Interpretations, insights and conclusions. "
+                "You must input your output in a proper markdown language format\n"
+                f"Here's the data given:\n{knowledge_input}"
+            )
+        #st.write("LLM Raw Context:", knowledge_input) #Debug
+        with st.spinner("Initializing Virtual Data Analyst..."):
+            st.session_state.analysis_data = Chatbot(system_instruction)
+            st.session_state.analysis_data.create_model()
+    
+    # Check if we need to generate a new comprehensive analysis
+    if 'analysis_report' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
+        with st.spinner("Analyzing and generating a comprehensive analysis..."): 
+            st.session_state.analysis_report = st.session_state.analysis_data.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
+            st.session_state.chatbot = Chatbot()
+            st.session_state.chatbot.create_model()
+            st.session_state.chat_history = []
+            st.session_state.user_input = ""
+        
+        st.session_state.new_dataset_loaded = False  # Reset the flag
+    
+    formatMessage(f"\n {st.session_state.analysis_report}")
+    
+    # Debugging purpose
+    # text_file = open("DebugOutput.txt", "w")
+    # text_file.write(st.session_state.analysis_report)
+    # text_file.close()
+    #st.markdown(st.session_state.analysis_report) # Debug Tae nabuang kog prompt ani ahahaha bullet form ra diaii
+
 def ui_chatbot():
+    st.markdown("""
+    <style>
+    .center-text {
+        text-align: center;
+        opacity: 0;
+        animation: fadeIn 2s ease-in-out forwards, pulse 2s infinite ease-in-out;
+    }
+    @keyframes fadeIn {
+        0% { opacity: 0; }
+        100% { opacity: 1; }
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.05); opacity: 0.8; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    
+    st.markdown("<h2 class='center-text'>Chat with Virtual Analyst 🤖</h2>", unsafe_allow_html=True)
     
     if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
         st.warning("Please load a dataset first.")
@@ -367,7 +570,7 @@ def ui_chatbot():
         st.warning("Please complete the analysis in the Dashboard page first.")
         return
             
-    # Initialize session state variables
+    # Initialize session state variables 
     if 'chatbot' not in st.session_state:
         st.session_state.chatbot = Chatbot()
         st.session_state.chatbot.create_model()
@@ -378,29 +581,63 @@ def ui_chatbot():
     def clear_chat_history():
         st.session_state.chat_history = []
 
-    # CSS for chat bubbles and fixed input
+        # CSS for chat bubbles, labels, and fixed input with animations
     st.markdown("""
         <style>
-        #root > div:nth-child(1) > div > div > div > div > section > div {padding-bottom: 70px;}
+        @keyframes slide-in-left {
+            0% {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        @keyframes slide-in-right {
+            0% {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
         .user-bubble, .bot-bubble {
             padding: 20px;
             border-radius: 10px;
             margin: 5px 0;
             max-width: 95%;
             word-wrap: break-word;
+            opacity: 0;
         }
         .user-bubble {
-            background-color: #e0cab8;
+            background-color: #b49577;
             color: black;
             align-self: flex-end;
             text-align: right;
             margin-left: auto;
+            animation: slide-in-right 0.5s forwards;
         }
         .bot-bubble {
-            background-color:  #b49577 ;
+            background-color: #e0cab8;
             color: black;
             align-self: flex-start;
             margin-right: auto;
+            animation: slide-in-left 0.5s forwards;
+        }
+        .user-label {
+            text-align: right;
+            margin-right: auto;
+            color: #555555;
+            font-size: 20px;
+        }
+        .bot-label {
+            text-align: left;
+            margin-left: auto;
+            color: #555555;
+            font-size: 25px;
         }
         .stTextInput > div > div > input {
             border-radius: 25px;
@@ -410,6 +647,7 @@ def ui_chatbot():
         }
         </style>
     """, unsafe_allow_html=True)
+
 
     # Function to handle chat input and update
     def handle_input():
@@ -425,6 +663,9 @@ def ui_chatbot():
     st.markdown('<div class="chat-container">', unsafe_allow_html=True)
     for role, message in st.session_state.chat_history:
         bubble_class = "user-bubble" if role == "User" else "bot-bubble"
+        label_class = "user-label" if role == "User" else "bot-label"
+        label = "You:" if role == "User" else "🧑‍💻Virtual Analyst:"
+        st.markdown(f'<div class="{label_class}">{label}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="{bubble_class}">{message}</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -441,138 +682,82 @@ def ui_chatbot():
     if st.button("Clear Chat History", on_click=clear_chat_history):
         st.success("Chat history cleared.")
 
-        
-def formatMessage(message):
-    # Mapping keywords to their display format
-    visual_mapping = {
-        "%HISTOGRAMS%": ["plot_histograms"],
-        "%BOXPLOTS%": ["plot_boxplots"],
-        "%CORRELATION MATRIX%": ["plot_correlation_matrix"]
-    }
     
-    formatted_parts = []
-    current_index = 0
-    
-    while current_index < len(message):
-        next_keyword_index = len(message)
-        next_keyword = None
-        
-        for keyword in visual_mapping.keys():
-            keyword_index = message.find(keyword, current_index)
-            if keyword_index != -1 and keyword_index < next_keyword_index:
-                next_keyword_index = keyword_index
-                next_keyword = keyword
-        
-        if next_keyword:
-            # Add text before the keyword
-            if current_index != next_keyword_index:
-                formatted_parts.append(("text", message[current_index:next_keyword_index].strip()))
-            
-            # Add the visualization
-            formatted_parts.append(("visualization", next_keyword))
-            current_index = next_keyword_index + len(next_keyword)
-        else:
-            # Add remaining text
-            formatted_parts.append(("text", message[current_index:].strip()))
-            break
-    
-    # Display formatted data and visualize
-    for part_type, content in formatted_parts:
-        if part_type == "text" and content:
-            st.markdown(content)
-        elif part_type == "visualization":
-            with st.spinner(f"Generating visualization for {content}..."):
-                for method_name in visual_mapping[content]:
-                    method = getattr(st.session_state.analyzer, method_name)
-                    method()
-            st.write("")  # Add space after visualization
-            
-
-            
-def ui_comprehensive_analysis():
-    st.title("Comprehensive Analysis")
-    
-    if 'dataset_loaded' not in st.session_state or not st.session_state.dataset_loaded:
-        st.warning("Please load a dataset first.")
-        return
-    
-    if 'analysis_complete' not in st.session_state or not st.session_state.analysis_complete:
-        st.warning("Please complete the analysis in the Dashboard page first.")
-        return
-    
-    if 'analysis_data' not in st.session_state:
-        knowledge_input = "\n".join(st.session_state.knowledge)
-        system_instruction = (
-                "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
-                "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
-                "In Visualizations and Interpretations part, replace the Histogram Title to %HISTOGRAMS% and the same for Boxplots its %BOXPLOTS% and %CORRELATION MATRIX% for Correlation Matrix."
-                "The display must be as detailed as possible and in this order: Introduction, Key Statistics, Descriptive Statistics,Visualizations and Interpretations, insights and conclusions. "
-                "You must input your output in a proper markdown language format\n"
-                f"Here's the data given:\n{knowledge_input}"
-            )
-        with st.spinner("Initializing Virtual Data Analyst..."):
-            st.session_state.analysis_data = Chatbot(system_instruction)
-            st.session_state.analysis_data.create_model()
-    
-    # Check if we need to generate a new comprehensive analysis
-    if 'analysis_report' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
-        with st.spinner("Analyzing and generating a comprehensive analysis..."):
-            st.session_state.analysis_report = st.session_state.analysis_data.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
-        st.session_state.new_dataset_loaded = False  # Reset the flag
-    
-    formatMessage(st.session_state.analysis_report)
-    
-
 def ui_about_page():    
     
     st.markdown("""
-    <style>
-    .team-member {
-        display: flex;
-        align-items: center;
-        margin-bottom: 2rem;
-        animation: pulse 3s ease-in-out infinite;
-    }
-    .team-member:nth-child(1) {
-        animation-delay: 0.5s;
-    }
-    .team-member:nth-child(2) {
-        animation-delay: 1s;
-    }
-    .team-member:nth-child(3) {
-        animation-delay: 1.5s;
-    }
-    .team-member img {
-        width: 100px;
-        height: 100px;
-        border-radius: 50%;
-        object-fit: cover;
-    }
-    .member-info {
-        display: flex;
-        flex-direction: column;
-    }
-    .member-name {
-        font-size: 1.8rem;  /* Increased text size */
-        font-weight: bold;
-        margin-bottom: 0.5rem;
-    }
-    .center-text {
-        text-align: center;
-        opacity: 0;
-        animation: fadeIn 2s ease-in-out forwards;
-    }
-    @keyframes fadeIn {
-        0% { opacity: 0; }
-        100% { opacity: 1; }
-    }
-    @keyframes pulse {
-        0% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.05); opacity: 0.8; }
-        100% { transform: scale(1); opacity: 1; }
-    }
-    </style>
-    """, unsafe_allow_html=True)
+        <style>
+        .team-member {
+            display: flex;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+        .team-member:nth-child(1) {
+            animation: pulse1 3s ease-in-out infinite;
+        }
+        .team-member:nth-child(2) {
+            animation: pulse2 3s ease-in-out infinite;
+        }
+        .team-member:nth-child(3) {
+            animation: pulse3 3s ease-in-out infinite;
+        }
+        .team-member:nth-child(4) {
+            animation: pulse4 3s ease-in-out infinite;
+        }
+        .team-member:nth-child(5) {
+            animation: pulse5 3s ease-in-out infinite;
+        }
+        .team-member img {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+        .member-info {
+            display: flex;
+            flex-direction: column;
+        }
+        .member-name {
+            font-size: 1.8rem;  /* Increased text size */
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        .center-text {
+            text-align: center;
+            opacity: 0;
+            animation: fadeIn 2s ease-in-out forwards, pulse1 2s infinite ease-in-out;
+        }
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
+        }
+        @keyframes pulse1 {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulse2 {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.85; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulse3 {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.06); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulse4 {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.12); opacity: 0.75; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pulse5 {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.04); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        </style>
+        """, unsafe_allow_html=True)
 
     # Centered and animated header for the team members
     st.markdown("<h2 class='center-text'>Team MachineLearners Midterm Project Members</h2>", unsafe_allow_html=True)
@@ -610,8 +795,6 @@ def ui_about_page():
     </p>
     """, unsafe_allow_html=True)
 
-    
-    
 
 def main():
     st.markdown("""
@@ -642,15 +825,15 @@ def main():
         st.session_state.is_asking = False
     
     st.sidebar.title("MachineLearner's Dataset Analyzer")
-    page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview", "Comprehensive Analysis", "Ask Assistant", "About"])
+    page = st.sidebar.radio("Menu Options", ["Load Dataset", "Dataset Overview", "Comprehensive Analysis", "Ask Virtual Analyst", "About"])
     
     if page == "Load Dataset":
         ui_load_dataset()
     elif page == "Dataset Overview":
-        ui_dashboard()
+        ui_dataset_overview()
     elif page == "Comprehensive Analysis":
         ui_comprehensive_analysis()
-    elif page == "Ask Assistant":
+    elif page == "Ask Virtual Analyst":
         ui_chatbot()
     elif page == "About":
         ui_about_page()
