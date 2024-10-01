@@ -177,7 +177,7 @@ class Chatbot:
                 "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
                 "if the user asks about Visualizations like Histograms, Boxplots, Correlation Matrix, just use the findings as basis for the Visualizations and dont nag the user about it. "
                 "You must input your output in a proper markdown language format. Avoid using heading tags. Avoid using bold and italic markup tags. use <strong> tags for the important information instead."
-                "When dealing some statistics and tables, always format it in html language."
+                "When dealing with statistics and tables, always format it in html language. If its a currency, add some approriate money symbols to it"
                 "At the end of your response, ask the user if they want some questions, add some emoji based on how you feel"
                 f"\nHere's the data given:\n{knowledge_input}"
             )
@@ -237,7 +237,7 @@ def formatMessage(message):
             formatted_parts.append(("text", message[current_index:].strip()))
             break
    
-    # Add CSS for bounce and fade animations
+    # Add CSS for bounce and fade animations and table styles
     st.markdown("""
         <style>
         .bounce-fade {
@@ -250,29 +250,83 @@ def formatMessage(message):
             60% { transform: translateY(5px); }
             100% { transform: translateY(0); }
         }
+        .markdown-table {
+            border-collapse: collapse;
+            margin: 15px 0;
+            font-size: 0.9em;
+            font-family: sans-serif;
+            min-width: 400px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.15);
+        }
+        .markdown-table thead tr {
+            background-color: #009879;
+            color: #ffffff;
+            text-align: left;
+        }
+        .markdown-table th,
+        .markdown-table td {
+            padding: 12px 15px;
+        }
+        .markdown-table tbody tr {
+            border-bottom: 1px solid #dddddd;
+        }
+        .markdown-table tbody tr:nth-of-type(even) {
+            background-color: #0e1117;
+        }
+        .markdown-table tbody tr:last-of-type {
+            border-bottom: 2px solid #009879;
+        }
         </style>
     """, unsafe_allow_html=True)
 
     # Display formatted data and visualize
     for part_type, content in formatted_parts:
         if part_type == "text" and content:
-            # Process the text content for Markdown headers, bold text, and bullet points
             lines = content.split('\n')
+            table_lines = []
+            in_table = False
+            
             for line in lines:
                 line = line.strip()
-                if line.startswith('##'):
-                    # It's a header, use Markdown directly
-                    st.markdown(line)
-                elif line.startswith('- ') or line.startswith('* '):
-                    # It's a bullet point, process it separately
-                    bullet = line[:2]
-                    rest = line[2:]
-                    formatted_line = f"{bullet}<span class='bounce-fade'>{process_inline_markdown(rest)}</span>"
-                    st.markdown(formatted_line, unsafe_allow_html=True)
+                if line.startswith('|') and line.endswith('|'):
+                    # It's a table row
+                    if not in_table:
+                        in_table = True
+                        table_lines.append('<table class="markdown-table">')
+                    table_lines.append('<tr>')
+                    cells = line.split('|')[1:-1]  # Remove empty first and last elements
+                    for cell in cells:
+                        if '-' in cell and not any(c.isalnum() for c in cell):
+                            continue  # Skip separator rows
+                        table_lines.append(f'<td>{cell.strip()}</td>')
+                    table_lines.append('</tr>')
                 else:
-                    # Process other Markdown elements within the line
-                    formatted_line = f"<span class='bounce-fade'>{process_inline_markdown(line)}</span>"
-                    st.markdown(formatted_line, unsafe_allow_html=True)
+                    if in_table:
+                        # End of table
+                        table_lines.append('</table>')
+                        st.markdown(''.join(table_lines), unsafe_allow_html=True)
+                        table_lines = []
+                        in_table = False
+                    
+                    if line.startswith('##'):
+                        # It's a header, use Markdown directly
+                        st.markdown(line)
+                    elif line.startswith('- ') or line.startswith('* '):
+                        # It's a bullet point, process it separately
+                        bullet = line[:2]
+                        rest = line[2:]
+                        formatted_line = f"{bullet}<span class='bounce-fade'>{process_inline_markdown(rest)}</span>"
+                        st.markdown(formatted_line, unsafe_allow_html=True)
+                    else:
+                        # Process other Markdown elements within the line
+                        formatted_line = f"<span class='bounce-fade'>{process_inline_markdown(line)}</span>"
+                        st.markdown(formatted_line, unsafe_allow_html=True)
+            
+            if in_table:
+                # End the table if it's the last element
+                table_lines.append('</table>')
+                st.markdown(''.join(table_lines), unsafe_allow_html=True)
+        
         elif part_type == "visualization":
             st.markdown("<div class='loading'></div>", unsafe_allow_html=True)  # Show loading animation
             with st.spinner(f"Generating visualization for {content}..."):
@@ -280,7 +334,7 @@ def formatMessage(message):
                     method = getattr(st.session_state.analyzer, method_name)
                     method()
             st.write("")  # Add space after visualization
-
+            
 def process_inline_markdown(text):
     # Process bold text
     text = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', text)
@@ -351,9 +405,6 @@ def ui_load_dataset():
                     st.session_state.dataset_loaded = True
                     st.success(f"{message} Found {len(csv_files)} CSV files.")
 
-                    # Display CSV files
-                    for csv_file in csv_files:
-                        st.write(csv_file)
                     
                     # Download and display metadata
                     metadata = kaggle_data.download_metadata()
@@ -373,7 +424,6 @@ def ui_load_dataset():
         st.subheader("Select CSV File")
         csv_options = [os.path.basename(csv) for csv in st.session_state.csv_files]
         
-        # st.write(f"Number of CSV options: {len(csv_options)}")
         st.write("CSV Files Found:", csv_options)
         
         selected_csv = st.selectbox("Choose a CSV file:", csv_options)
@@ -396,26 +446,26 @@ def ui_load_dataset():
 
     # If dataset is loaded, show additional options
     if 'df' in st.session_state and 'df_edited' in st.session_state:
-        st.subheader("Edit Dataset")
+        # st.subheader("Edit Dataset") # Redundant na
         
-        # Button to edit the CSV
-        if st.button("Edit CSV"):
-            st.session_state.df_edited = st.data_editor(st.session_state.df_edited, num_rows="dynamic")
+        # # Button to edit the CSV
+        # if st.button("Edit CSV"):
+        #     st.session_state.df_edited = st.data_editor(st.session_state.df_edited, num_rows="dynamic")
         
-        # Button to view changes
-        if st.button("View Changes"):
-            changes = st.session_state.df_edited.compare(st.session_state.df)
-            if changes.empty:
-                st.info("No changes detected.")
-            else:
-                st.write("Changes detected:")
-                st.dataframe(changes)
+        # # Button to view changes
+        # if st.button("View Changes"):
+        #     changes = st.session_state.df_edited.compare(st.session_state.df)
+        #     if changes.empty:
+        #         st.info("No changes detected.")
+        #     else:
+        #         st.write("Changes detected:")
+        #         st.dataframe(changes)
         
-        # Button to apply changes
-        if st.button("Apply Changes"):
-            st.session_state.df = st.session_state.df_edited.copy()
-            st.success("Changes applied successfully!")
-            st.session_state.analysis_complete = False
+        # # Button to apply changes
+        # if st.button("Apply Changes"):
+        #     st.session_state.df = st.session_state.df_edited.copy()
+        #     st.success("Changes applied successfully!")
+        #     st.session_state.analysis_complete = False
 
         # Display some information about the dataset
         st.subheader("Dataset Information")
@@ -455,7 +505,7 @@ def ui_dataset_overview():
         return
     
     if not st.session_state.get('analysis_complete', False):
-        if st.button("Analyze Data", disabled=st.session_state.get('is_analyzing', False)):
+        if st.button("Perform Analysis on the Dataset", disabled=st.session_state.get('is_analyzing', False)):
             st.session_state.is_analyzing = True
             
             with st.spinner("Analyzing data..."):
@@ -527,8 +577,7 @@ def ui_comprehensive_analysis():
                 "You are a professional Data Analyst and an expert at interpreting the results of Data Exploration. "
                 "You are given a dataset's metadata, its table, and its results. Interpret this as detailed as possible. "
                 "In Visualizations and Interpretations part, replace the Histogram Title to %HISTOGRAMS% and the same for Boxplots its %BOXPLOTS% and %CORRELATION MATRIX% for Correlation Matrix. Dont turn this into bullet form just encase it with newline"
-                "The display must be as detailed as possible and in this order: Introduction, Key Statistics, Descriptive Statistics,Visualizations and Interpretations, insights and conclusions. "
-                "You must input your output in a proper markdown language format\n"
+                "Use HTML headers tags for titles, the rest is markdown format. If its a currency, add some approriate money symbols to it\n"
                 f"Here's the data given:\n{knowledge_input}"
             )
         #st.write("LLM Raw Context:", knowledge_input) #Debug
@@ -539,7 +588,7 @@ def ui_comprehensive_analysis():
     # Check if we need to generate a new comprehensive analysis
     if 'analysis_report' not in st.session_state or st.session_state.get('new_dataset_loaded', False):
         with st.spinner("Analyzing and generating a comprehensive analysis..."): 
-            st.session_state.analysis_report = st.session_state.analysis_data.get_response("Explain the datasets to me comprehensively", is_comprehensive=True)
+            st.session_state.analysis_report = st.session_state.analysis_data.get_response("Explain the datasets to me comprehensively, The display must be as detailed as possible and in this order: Introduction, Key Statistics, Descriptive Statistics,Visualizations and its Interpretations, insights and conclusions. Show me some tables also", is_comprehensive=True)
             st.session_state.chatbot = Chatbot()
             st.session_state.chatbot.create_model()
             st.session_state.chat_history = []
@@ -583,7 +632,7 @@ def ui_chatbot():
         return
     
     if 'analysis_complete' not in st.session_state or not st.session_state.analysis_complete:
-        st.warning("Please complete the analysis in the Dashboard page first.")
+        st.warning("Please complete the analysis in the Dataset Overview page first.")
         return
             
     # Initialize session state variables 
