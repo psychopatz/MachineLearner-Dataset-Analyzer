@@ -831,10 +831,10 @@ def ui_about_page():
     # Team members with corresponding image files
     members = [
         {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
-        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
-        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
-        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"},
-        {"name": "Patrick Oliver Bustamante", "image": "patrick.jpg"}
+        {"name": "Donnel Keith Delgado", "image": "Delgado.jpg"},
+        {"name": "Anne Jennel Ilosorio", "image": "Anne.png"},
+        {"name": "Princess Jane Salaom", "image": "jane.jpg"},
+        {"name": "Felix Vilocura II", "image": "felix.jpg"}
         # Add any additional members here
     ]
 
